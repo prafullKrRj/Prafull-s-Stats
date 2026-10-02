@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -106,7 +109,16 @@ fun App(platform: PlatformActions) {
                             }
                         }
                     ) { padding ->
-                        Content(today, selectedDate, { selectedDate = it }, padding, wide = false)
+                        Box {
+                            Content(today, selectedDate, { selectedDate = it }, padding, wide = false)
+                            // Opaque strip so scrolled content never runs under the status bar icons.
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .windowInsetsTopHeight(WindowInsets.statusBars)
+                                    .background(MaterialTheme.colorScheme.background)
+                            )
+                        }
                     }
                 }
             }
