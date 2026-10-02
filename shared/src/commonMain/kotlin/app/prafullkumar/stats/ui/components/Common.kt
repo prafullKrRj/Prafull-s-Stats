@@ -33,7 +33,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -44,28 +43,36 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.prafullkumar.stats.data.formatNumber
-import app.prafullkumar.stats.ui.theme.NeonBrush
+import app.prafullkumar.stats.ui.theme.LocalDarkTheme
 import kotlin.math.min
 
-/** Rounded card used for every block on every screen. */
+/**
+ * Rounded card used for every block on every screen. Light mode lifts it with
+ * a soft shadow; dark mode uses a hairline border instead. [highlight] marks
+ * the one card on a screen that matters most.
+ */
 @Composable
 fun SectionCard(
     modifier: Modifier = Modifier,
-    glow: Boolean = false,
+    highlight: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
+    val dark = LocalDarkTheme.current
+    val shape = RoundedCornerShape(22.dp)
+    val border = when {
+        highlight -> scheme.primary.copy(alpha = if (dark) 0.45f else 0.35f)
+        dark -> scheme.outlineVariant
+        else -> null
+    }
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                brush = if (glow) NeonBrush else Brush.linearGradient(listOf(scheme.outlineVariant, scheme.outlineVariant)),
-                shape = RoundedCornerShape(22.dp)
-            ),
-        shape = RoundedCornerShape(22.dp),
+            .then(if (border != null) Modifier.border(1.dp, border, shape) else Modifier),
+        shape = shape,
         color = scheme.surface,
-        tonalElevation = 0.dp
+        tonalElevation = 0.dp,
+        shadowElevation = if (dark) 0.dp else 1.dp
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) { content() }
     }
@@ -81,8 +88,7 @@ fun SectionHeader(title: String, trailing: String? = null, modifier: Modifier = 
         Text(
             title.uppercase(),
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Bold
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         if (trailing != null) {
             Text(
@@ -128,7 +134,6 @@ fun ProgressRing(
     unit: String,
     size: Dp = 92.dp,
     modifier: Modifier = Modifier,
-    brush: Brush? = null,
     /** False shows just "value+unit" in the middle, e.g. "45%". */
     showTarget: Boolean = true
 ) {
@@ -142,11 +147,7 @@ fun ProgressRing(
                 val arcSize = Size(this.size.width - stroke, this.size.height - stroke)
                 drawArc(track, -90f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
                 if (fraction > 0f) {
-                    if (brush != null) {
-                        drawArc(brush, -90f, 360f * fraction, false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
-                    } else {
-                        drawArc(color, -90f, 360f * fraction, false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
-                    }
+                    drawArc(color, -90f, 360f * fraction, false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
                 }
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -175,14 +176,13 @@ fun ProgressRing(
     }
 }
 
-/** Flat progress bar. Pass [brush] for the neon gradient. */
+/** Flat progress bar used for core foods, goals, habits and adherence rows. */
 @Composable
 fun ThinBar(
     fraction: Float,
     color: Color,
     modifier: Modifier = Modifier,
-    height: Dp = 10.dp,
-    brush: Brush? = null
+    height: Dp = 10.dp
 ) {
     val track = MaterialTheme.colorScheme.outlineVariant
     Canvas(modifier.fillMaxWidth().height(height)) {
@@ -191,8 +191,7 @@ fun ThinBar(
         val w = size.width * fraction.coerceIn(0f, 1f)
         if (w > 0f) {
             val s = Size(min(w, size.width).coerceAtLeast(size.height), size.height)
-            if (brush != null) drawRoundRect(brush = brush, size = s, cornerRadius = CornerRadius(r, r))
-            else drawRoundRect(color = color, size = s, cornerRadius = CornerRadius(r, r))
+            drawRoundRect(color = color, size = s, cornerRadius = CornerRadius(r, r))
         }
     }
 }
@@ -233,8 +232,7 @@ fun CheckDot(checked: Boolean, size: Dp = 30.dp, color: Color = MaterialTheme.co
         Modifier
             .size(size)
             .clip(CircleShape)
-            .background(if (checked) color else scheme.surfaceVariant)
-            .border(1.dp, if (checked) color else scheme.outline, CircleShape),
+            .background(if (checked) color else scheme.surfaceVariant),
         contentAlignment = Alignment.Center
     ) {
         if (checked) {
@@ -277,18 +275,19 @@ fun AddButton(label: String, modifier: Modifier = Modifier, icon: ImageVector? =
     }
 }
 
-/** The primary action on a screen — neon gradient fill. */
+/** The primary action on a screen — solid fill in the theme's primary colour. */
 @Composable
-fun NeonButton(label: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+fun PrimaryButton(label: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
     Box(
         modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(if (enabled) NeonBrush else Brush.linearGradient(listOf(Color.Gray, Color.Gray)))
+            .background(if (enabled) scheme.primary else scheme.outline)
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 13.dp),
+            .padding(horizontal = 18.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = Color.White, fontWeight = FontWeight.Bold)
+        Text(label, style = MaterialTheme.typography.labelLarge, color = scheme.onPrimary, maxLines = 1)
     }
 }
 

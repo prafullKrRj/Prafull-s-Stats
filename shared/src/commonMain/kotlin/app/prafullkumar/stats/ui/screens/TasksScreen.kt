@@ -50,9 +50,8 @@ import app.prafullkumar.stats.ui.components.SectionCard
 import app.prafullkumar.stats.ui.components.SectionHeader
 import app.prafullkumar.stats.ui.components.Tag
 import app.prafullkumar.stats.ui.components.ThinBar
-import app.prafullkumar.stats.ui.theme.Ember
+import app.prafullkumar.stats.ui.theme.StreakColor
 import app.prafullkumar.stats.ui.theme.GoalColor
-import app.prafullkumar.stats.ui.theme.NeonBrush
 import kotlinx.datetime.LocalDate
 
 /** Time-blocked first (by time), then Top 3, then by priority; done sink. */
@@ -95,10 +94,10 @@ fun TasksScreen(
         }
 
         item {
-            SectionCard(glow = true) {
+            SectionCard(highlight = true) {
                 SectionHeader("Plan the day", if (tasks.isEmpty()) "empty" else "$done / ${tasks.size} done")
                 Spacer(Modifier.height(10.dp))
-                ThinBar(if (tasks.isEmpty()) 0f else done.toFloat() / tasks.size, MaterialTheme.colorScheme.primary, brush = NeonBrush)
+                ThinBar(if (tasks.isEmpty()) 0f else done.toFloat() / tasks.size, MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.height(12.dp))
                 QuickAdd(placeholder = "Add a task and press enter") { title ->
                     StatsRepo.addTask(selectedDate, Task(id = StatsRepo.newId("task"), title = title))
@@ -229,7 +228,7 @@ fun TaskRow(
                 Spacer(Modifier.height(3.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     task.time?.let { Tag("⏰ $it", scheme.tertiary) }
-                    if (task.priority > 0) Tag(priorityNames[task.priority], if (task.priority == 3) Ember else scheme.secondary)
+                    if (task.priority > 0) Tag(priorityNames[task.priority], if (task.priority == 3) StreakColor else scheme.secondary)
                     goal?.let { Tag("${it.area.emoji} ${it.title}", GoalColor, Modifier.weight(1f, fill = false)) }
                     if (task.pomodoros > 0 || task.estimate > 1) Tag("🍅 ${task.pomodoros}/${task.estimate}", scheme.onSurfaceVariant)
                 }
@@ -243,7 +242,7 @@ fun TaskRow(
             Icon(
                 Icons.Filled.Star,
                 contentDescription = "Top 3",
-                tint = if (task.top) Ember else scheme.outline,
+                tint = if (task.top) StreakColor else scheme.outline,
                 modifier = Modifier.size(34.dp).clip(CircleShape).clickable { StatsRepo.toggleTop(task.id) }.padding(7.dp)
             )
             Icon(

@@ -46,7 +46,6 @@ import app.prafullkumar.stats.ui.theme.CalorieColor
 import app.prafullkumar.stats.ui.theme.FiberColor
 import app.prafullkumar.stats.ui.theme.FocusColor
 import app.prafullkumar.stats.ui.theme.GoalColor
-import app.prafullkumar.stats.ui.theme.NeonBrush
 import app.prafullkumar.stats.ui.theme.ProteinColor
 import app.prafullkumar.stats.ui.theme.StreakColor
 import kotlinx.datetime.LocalDate
@@ -116,9 +115,9 @@ private fun ScoreHero(today: LocalDate) {
     val totals = StatsRepo.totalsFor(today)
     val due = StatsRepo.scheduledHabits(today)
     val target = StatsRepo.targets.beastScore
-    SectionCard(glow = true) {
+    SectionCard(highlight = true) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            ProgressRing(score.score.toDouble(), 100.0, StreakColor, "", "", size = 108.dp, brush = NeonBrush, showTarget = false)
+            ProgressRing(score.score.toDouble(), 100.0, StreakColor, "", "", size = 108.dp, showTarget = false)
             Spacer(Modifier.width(18.dp))
             Column(Modifier.weight(1f)) {
                 Text("🔥 ${beast.current}", style = MaterialTheme.typography.displaySmall, color = StreakColor)
@@ -241,7 +240,7 @@ private fun GoalsGlance(today: LocalDate) {
                     Text("${(g.progress * 100).toInt()}%", style = MaterialTheme.typography.labelLarge, color = GoalColor)
                 }
                 Spacer(Modifier.height(5.dp))
-                ThinBar(g.progress, GoalColor, height = 7.dp, brush = NeonBrush)
+                ThinBar(g.progress, GoalColor, height = 7.dp)
                 g.nextStep()?.let { step ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Next: ${step.title}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))

@@ -39,7 +39,7 @@ import app.prafullkumar.stats.data.weekStart
 import app.prafullkumar.stats.ui.components.AddButton
 import app.prafullkumar.stats.ui.components.ChoiceChip
 import app.prafullkumar.stats.ui.components.Hint
-import app.prafullkumar.stats.ui.components.NeonButton
+import app.prafullkumar.stats.ui.components.PrimaryButton
 import app.prafullkumar.stats.ui.components.ScreenTitle
 import app.prafullkumar.stats.ui.components.SectionCard
 import app.prafullkumar.stats.ui.components.SectionHeader
@@ -47,7 +47,6 @@ import app.prafullkumar.stats.ui.components.StatTile
 import app.prafullkumar.stats.ui.components.ThinBar
 import app.prafullkumar.stats.ui.theme.CalorieColor
 import app.prafullkumar.stats.ui.theme.FocusColor
-import app.prafullkumar.stats.ui.theme.NeonBrush
 import app.prafullkumar.stats.ui.theme.StreakColor
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
@@ -100,8 +99,7 @@ fun FocusScreen(today: LocalDate, contentPadding: PaddingValues) {
                 Spacer(Modifier.height(8.dp))
                 ThinBar(
                     if (targets.focusMinutes <= 0) 0f else log.totalFocus.toFloat() / targets.focusMinutes,
-                    FocusColor,
-                    brush = NeonBrush
+                    FocusColor
                 )
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -152,7 +150,7 @@ fun TimerCard(compact: Boolean = false) {
     val color = if (timer.phase == Phase.WORK) FocusColor else CalorieColor
     val ringSize = if (compact) 120.dp else 220.dp
 
-    SectionCard(glow = !timer.idle) {
+    SectionCard(highlight = !timer.idle) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Phase.entries.forEach { p ->
@@ -169,7 +167,7 @@ fun TimerCard(compact: Boolean = false) {
                     val inset = stroke / 2
                     val arc = Size(size.width - stroke, size.height - stroke)
                     drawArc(track, -90f, 360f, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
-                    if (fraction > 0f) drawArc(NeonBrush, -90f, 360f * fraction, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
+                    if (fraction > 0f) drawArc(color, -90f, 360f * fraction, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
@@ -203,11 +201,11 @@ fun TimerCard(compact: Boolean = false) {
                         AddButton("Skip", icon = null) { StatsRepo.skipPhase() }
                     }
                     timer.paused -> {
-                        NeonButton("Resume") { StatsRepo.resumeTimer() }
+                        PrimaryButton("Resume") { StatsRepo.resumeTimer() }
                         AddButton("Stop", icon = null) { StatsRepo.stopTimer() }
                     }
                     else -> {
-                        NeonButton("▶  Start ${timer.length} min") { StatsRepo.startTimer() }
+                        PrimaryButton("▶  Start ${timer.length} min") { StatsRepo.startTimer() }
                         if (timer.phase != Phase.WORK) AddButton("Skip break", icon = null) { StatsRepo.skipPhase() }
                     }
                 }

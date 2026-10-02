@@ -1,37 +1,39 @@
 package app.prafullkumar.stats.ui.theme
 
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
-// Midnight neon: near-black blue base, electric violet + cyan accents.
-val Violet = Color(0xFF8B7BFF)
-val VioletDeep = Color(0xFF6C5CE7)
-val Cyan = Color(0xFF22D3EE)
-val Lime = Color(0xFFA3E635)
-val Ember = Color(0xFFFF7A45)
-val Rose = Color(0xFFFB7185)
+// Calm, warm palette carried over from the first Android app: sage for
+// progress, clay for streaks and urgency, plum for focus. Paper-like light
+// mode, warm charcoal dark mode — no gradients, no glow.
+val Sage = Color(0xFF3E7C5B)
+val SageLight = Color(0xFFDCEDE2)
+val SageDark = Color(0xFF8FCBA8)
 
-val Night = Color(0xFF070A12)
-val NightCard = Color(0xFF0F1422)
-val NightRaised = Color(0xFF161D30)
-val NightLine = Color(0xFF232B42)
-val InkDark = Color(0xFFE8ECF8)
-val MutedDark = Color(0xFF8D97B5)
+val Clay = Color(0xFFC2703C)
+val ClayLight = Color(0xFFF8E6D7)
+val ClayDark = Color(0xFFE9A578)
 
-val Paper = Color(0xFFF5F6FB)
-val PaperCard = Color(0xFFFFFFFF)
-val InkLight = Color(0xFF12152A)
-val MutedLight = Color(0xFF5E6684)
+val Plum = Color(0xFF5B54B8)
+val PlumLight = Color(0xFFE6E4F8)
+val PlumDark = Color(0xFFB2ACEE)
 
-// Accents reused by chips and charts.
-val ProteinColor = Color(0xFF8B7BFF)
-val CarbColor = Color(0xFF22D3EE)
-val FatColor = Color(0xFFFBBF24)
-val FiberColor = Color(0xFFA3E635)
-val CalorieColor = Color(0xFF34D399)
-val StreakColor = Ember
-val FocusColor = Cyan
-val GoalColor = Color(0xFFC084FC)
+val Cream = Color(0xFFF8F6F1)
+val CardLight = Color(0xFFFFFFFF)
+val InkLight = Color(0xFF1C1F1D)
+val MutedLight = Color(0xFF666D67)
 
-/** Signature gradient for hero numbers, progress and primary buttons. */
-val NeonBrush = Brush.linearGradient(listOf(VioletDeep, Violet, Cyan))
+val Charcoal = Color(0xFF141614)
+val CharcoalCard = Color(0xFF1C1F1C)
+val CharcoalRaised = Color(0xFF252925)
+val InkDark = Color(0xFFE9ECE7)
+val MutedDark = Color(0xFF9DA59D)
+
+// Data accents, picked to read on both light and dark cards.
+val ProteinColor = Color(0xFF6A62C9)
+val CarbColor = Color(0xFF2F8F79)
+val FatColor = Color(0xFFC08A1E)
+val FiberColor = Color(0xFF8A7340)
+val CalorieColor = Color(0xFF4F9A6E)
+val StreakColor = Color(0xFFD9692F)
+val FocusColor = Color(0xFF4F7FB8)
+val GoalColor = Color(0xFF8D5BB0)

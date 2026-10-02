@@ -55,10 +55,11 @@ import app.prafullkumar.stats.data.today
 import app.prafullkumar.stats.sync.CloudSync
 import app.prafullkumar.stats.ui.Dest
 import app.prafullkumar.stats.ui.Nav
-import app.prafullkumar.stats.ui.theme.Cyan
-import app.prafullkumar.stats.ui.theme.Ember
+import app.prafullkumar.stats.ui.theme.CalorieColor
+import app.prafullkumar.stats.ui.theme.FocusColor
+import app.prafullkumar.stats.ui.theme.StreakColor
 import app.prafullkumar.stats.ui.theme.PrafullStatsTheme
-import app.prafullkumar.stats.ui.theme.Violet
+import app.prafullkumar.stats.ui.theme.Sage
 import java.awt.Desktop
 import java.awt.FileDialog
 import java.awt.Frame
@@ -236,7 +237,7 @@ private fun MiniTimer(onOpen: () -> Unit, onClose: () -> Unit) {
                 Text(
                     clock(timer.secondsLeft(StatsRepo.now)),
                     style = MaterialTheme.typography.headlineSmall,
-                    color = if (timer.phase == Phase.WORK) Cyan else Color(0xFF34D399),
+                    color = if (timer.phase == Phase.WORK) FocusColor else CalorieColor,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
@@ -282,9 +283,9 @@ private class TrayIcon(val fraction: Float, val active: Boolean, val work: Boole
         val inset = stroke / 2 + size.minDimension * 0.04f
         val arc = Size(size.width - inset * 2, size.height - inset * 2)
         drawArc(Color(0x66888888), -90f, 360f, false, Offset(inset, inset), arc, style = Stroke(stroke))
-        val color = if (!active) Violet else if (work) Cyan else Color(0xFF34D399)
+        val color = if (!active) Sage else if (work) FocusColor else CalorieColor
         drawArc(color, -90f, 360f * fraction.coerceIn(0.02f, 1f), false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
-        if (active) drawCircle(Ember, radius = size.minDimension * 0.12f)
+        if (active) drawCircle(StreakColor, radius = size.minDimension * 0.12f)
     }
 
     override fun equals(other: Any?) = other is TrayIcon && other.fraction == fraction && other.active == active && other.work == work

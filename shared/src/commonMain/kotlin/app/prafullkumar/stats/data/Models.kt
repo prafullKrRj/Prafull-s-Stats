@@ -137,14 +137,25 @@ data class Goal(
 ) {
     val hasMetric: Boolean get() = metricTarget != metricStart && metricName.isNotBlank()
 
-    /** 0..1 */
+    /** 0..1 share of the number moved from start to target. */
+    val metricProgress: Float
+        get() = if (!hasMetric) 0f
+        else ((metricCurrent - metricStart) / (metricTarget - metricStart)).toFloat().coerceIn(0f, 1f)
+
+    /** 0..1 share of steps ticked. */
+    val stepProgress: Float
+        get() = if (steps.isEmpty()) 0f else steps.count { it.done }.toFloat() / steps.size
+
+    /**
+     * 0..1 overall. With both a number and steps, each counts half — steps are
+     * the plan, the number is the outcome, and neither alone tells the story.
+     */
     val progress: Float
         get() = when {
             status == GoalStatus.DONE -> 1f
-            hasMetric -> ((metricCurrent - metricStart) / (metricTarget - metricStart))
-                .toFloat().coerceIn(0f, 1f)
-            steps.isNotEmpty() -> steps.count { it.done }.toFloat() / steps.size
-            else -> 0f
+            hasMetric && steps.isNotEmpty() -> (metricProgress + stepProgress) / 2f
+            hasMetric -> metricProgress
+            else -> stepProgress
         }
 
     fun nextStep(): GoalStep? = steps.firstOrNull { !it.done }
@@ -278,7 +289,7 @@ enum class ThemeMode { DARK, LIGHT, SYSTEM }
 
 @Serializable
 data class Settings(
-    val theme: ThemeMode = ThemeMode.DARK,
+    val theme: ThemeMode = ThemeMode.SYSTEM,
     val name: String = "Prafull"
 )
 

@@ -13,14 +13,14 @@ import androidx.compose.ui.unit.sp
 val Typography = Typography(
     displayMedium = TextStyle(
         fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 44.sp,
         lineHeight = 50.sp,
-        letterSpacing = (-1).sp
+        letterSpacing = (-0.5).sp
     ),
     displaySmall = TextStyle(
         fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 32.sp,
         lineHeight = 40.sp
     ),

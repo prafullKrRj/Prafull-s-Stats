@@ -44,3 +44,11 @@ compose.desktop {
         }
     }
 }
+
+// Renders every screen offscreen with demo data: ./gradlew :desktopApp:snapshots
+tasks.register<JavaExec>("snapshots") {
+    group = "verification"
+    mainClass.set("app.prafullkumar.stats.desktop.SnapshotsKt")
+    classpath = sourceSets["main"].runtimeClasspath
+    args(layout.buildDirectory.dir("snapshots").get().asFile.absolutePath)
+}

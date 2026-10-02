@@ -43,7 +43,7 @@ import app.prafullkumar.stats.ui.Nav
 import app.prafullkumar.stats.ui.components.AddButton
 import app.prafullkumar.stats.ui.components.ChoiceChip
 import app.prafullkumar.stats.ui.components.Hint
-import app.prafullkumar.stats.ui.components.NeonButton
+import app.prafullkumar.stats.ui.components.PrimaryButton
 import app.prafullkumar.stats.ui.components.NumberInput
 import app.prafullkumar.stats.ui.components.ScreenTitle
 import app.prafullkumar.stats.ui.components.SectionCard
@@ -209,7 +209,7 @@ private fun ToggleRow(label: String, value: Boolean, onChange: (Boolean) -> Unit
 private fun CloudCard() {
     val scope = rememberCoroutineScope()
     val cfg = CloudSync.config
-    SectionCard(glow = cfg.signedIn) {
+    SectionCard(highlight = cfg.signedIn) {
         SectionHeader("Cloud sync · Firebase", if (cfg.signedIn) "on" else "off")
         Spacer(Modifier.height(8.dp))
         if (cfg.signedIn) {
@@ -222,7 +222,7 @@ private fun CloudCard() {
             CloudSync.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
             Spacer(Modifier.height(8.dp))
             Row {
-                NeonButton(if (CloudSync.busy) "Syncing…" else "Sync now", enabled = !CloudSync.busy) {
+                PrimaryButton(if (CloudSync.busy) "Syncing…" else "Sync now", enabled = !CloudSync.busy) {
                     scope.launch { CloudSync.syncNow() }
                 }
                 Spacer(Modifier.width(8.dp))
@@ -262,7 +262,7 @@ private fun CloudCard() {
         Spacer(Modifier.height(10.dp))
         val ready = apiKey.isNotBlank() && projectId.isNotBlank() && email.contains('@') && password.length >= 6 && !CloudSync.busy
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            NeonButton(if (CloudSync.busy) "Working…" else "Sign in", enabled = ready) {
+            PrimaryButton(if (CloudSync.busy) "Working…" else "Sign in", enabled = ready) {
                 CloudSync.setProject(apiKey, projectId)
                 scope.launch { CloudSync.signIn(email, password, create = false) }
             }

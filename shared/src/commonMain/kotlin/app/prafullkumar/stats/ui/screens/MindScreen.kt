@@ -74,7 +74,7 @@ fun MindScreen(
         }
 
         item {
-            SectionCard(glow = true) {
+            SectionCard(highlight = true) {
                 SectionHeader("Brain dump", "${StatsRepo.inbox.count { !it.done }} open")
                 Spacer(Modifier.height(6.dp))
                 Hint("Get it out of your head. One thought per line — sort it later into tasks.")

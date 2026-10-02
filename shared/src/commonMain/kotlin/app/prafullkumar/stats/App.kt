@@ -54,7 +54,6 @@ import app.prafullkumar.stats.ui.screens.MoreScreen
 import app.prafullkumar.stats.ui.screens.SettingsScreen
 import app.prafullkumar.stats.ui.screens.StatsScreen
 import app.prafullkumar.stats.ui.screens.TasksScreen
-import app.prafullkumar.stats.ui.theme.NeonBrush
 import app.prafullkumar.stats.ui.theme.PrafullStatsTheme
 import kotlinx.coroutines.delay
 import kotlinx.datetime.LocalDate
@@ -154,7 +153,7 @@ private fun Sidebar() {
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 6.dp, bottom = 14.dp)) {
-            Box(Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(NeonBrush))
+            Box(Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(scheme.primary))
             Spacer(Modifier.width(10.dp))
             Text("Prafull Stats", style = MaterialTheme.typography.titleMedium, color = scheme.onSurface, fontWeight = FontWeight.Bold)
         }

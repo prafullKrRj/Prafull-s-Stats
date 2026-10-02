@@ -50,7 +50,7 @@ import app.prafullkumar.stats.ui.components.AddButton
 import app.prafullkumar.stats.ui.components.CheckDot
 import app.prafullkumar.stats.ui.components.ChoiceChip
 import app.prafullkumar.stats.ui.components.Hint
-import app.prafullkumar.stats.ui.components.NeonButton
+import app.prafullkumar.stats.ui.components.PrimaryButton
 import app.prafullkumar.stats.ui.components.NumberInput
 import app.prafullkumar.stats.ui.components.ProgressRing
 import app.prafullkumar.stats.ui.components.ScreenTitle
@@ -60,10 +60,9 @@ import app.prafullkumar.stats.ui.components.StatTile
 import app.prafullkumar.stats.ui.components.Tag
 import app.prafullkumar.stats.ui.components.ThinBar
 import app.prafullkumar.stats.ui.components.WhyLine
-import app.prafullkumar.stats.ui.theme.Ember
+import app.prafullkumar.stats.ui.theme.StreakColor
 import app.prafullkumar.stats.ui.theme.FocusColor
 import app.prafullkumar.stats.ui.theme.GoalColor
-import app.prafullkumar.stats.ui.theme.NeonBrush
 import kotlinx.datetime.LocalDate
 
 @Composable
@@ -80,16 +79,16 @@ fun GoalsScreen(today: LocalDate, contentPadding: PaddingValues) {
     ScreenColumn(contentPadding) {
         item {
             ScreenTitle("Goals", "${active.size} active · ${StatsRepo.goals.count { it.status == GoalStatus.DONE }} achieved") {
-                NeonButton("+ Goal") { picking = true }
+                PrimaryButton("+ Goal") { picking = true }
             }
         }
 
         if (active.isNotEmpty()) {
             item {
-                SectionCard(glow = true) {
+                SectionCard(highlight = true) {
                     SectionHeader("Overall progress", "${(avg * 100).toInt()}%")
                     Spacer(Modifier.height(10.dp))
-                    ThinBar(avg, GoalColor, height = 12.dp, brush = NeonBrush)
+                    ThinBar(avg, GoalColor, height = 12.dp)
                     Spacer(Modifier.height(8.dp))
                     val stepsLeft = active.sumOf { g -> g.steps.count { !it.done } }
                     Hint("${plural(stepsLeft, "step")} left across your active goals. Pick one and put it on today.")
@@ -155,7 +154,7 @@ fun GoalCard(goal: Goal, today: LocalDate, compact: Boolean = false, onClick: ()
                     Tag("${goal.area.emoji} ${goal.area.title}", GoalColor)
                     parseDate(goal.targetDate)?.let { d ->
                         val late = d < today && goal.status == GoalStatus.ACTIVE
-                        Tag(dueLabel(d, today), if (late) Ember else scheme.onSurfaceVariant)
+                        Tag(dueLabel(d, today), if (late) StreakColor else scheme.onSurfaceVariant)
                     }
                     if (goal.pinned) Tag("📌", scheme.onSurfaceVariant)
                 }
@@ -173,7 +172,6 @@ fun GoalCard(goal: Goal, today: LocalDate, compact: Boolean = false, onClick: ()
                 label = "",
                 unit = "%",
                 size = if (compact) 52.dp else 64.dp,
-                brush = NeonBrush,
                 showTarget = false
             )
         }
@@ -212,7 +210,7 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
         }
 
         item {
-            SectionCard(glow = true) {
+            SectionCard(highlight = true) {
                 Text(goal.title, style = MaterialTheme.typography.headlineSmall, color = scheme.onSurface)
                 Spacer(Modifier.height(10.dp))
                 if (goal.why.isBlank()) {
@@ -225,7 +223,7 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
                 } else WhyLine(goal.why)
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    ProgressRing((goal.progress * 100).toInt().toDouble(), 100.0, GoalColor, "", "%", size = 88.dp, brush = NeonBrush, showTarget = false)
+                    ProgressRing((goal.progress * 100).toInt().toDouble(), 100.0, GoalColor, "", "%", size = 88.dp, showTarget = false)
                     Spacer(Modifier.width(16.dp))
                     Column(Modifier.weight(1f)) {
                         Text(
@@ -234,6 +232,9 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
                             color = scheme.onSurface,
                             fontWeight = FontWeight.Bold
                         )
+                        if (goal.hasMetric && goal.steps.isNotEmpty()) {
+                            Hint("Steps ${(goal.stepProgress * 100).toInt()}% · ${goal.metricName} ${(goal.metricProgress * 100).toInt()}%")
+                        }
                         parseDate(goal.targetDate)?.let { Hint("Deadline ${it} · ${dueLabel(it, today)}") }
                         Hint("${minutesLabel(focus)} focused · ${linked.count { it.second.done }} tasks done")
                         Hint("Status: ${goal.status.title}")
@@ -251,7 +252,7 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         NumberInput(value, { value = it }, "Current", Modifier.weight(1f))
                         Spacer(Modifier.width(10.dp))
-                        NeonButton("Update", enabled = value.toDoubleOrNull() != null) {
+                        PrimaryButton("Update", enabled = value.toDoubleOrNull() != null) {
                             value.toDoubleOrNull()?.let { StatsRepo.setMetric(goal.id, it) }
                         }
                     }
@@ -310,7 +311,7 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
                 }
                 if (goal.progress >= 1f && goal.status == GoalStatus.ACTIVE) {
                     Spacer(Modifier.height(6.dp))
-                    NeonButton("🏆 Mark goal achieved", Modifier.fillMaxWidth()) { StatsRepo.setGoalStatus(goal.id, GoalStatus.DONE) }
+                    PrimaryButton("🏆 Mark goal achieved", Modifier.fillMaxWidth()) { StatsRepo.setGoalStatus(goal.id, GoalStatus.DONE) }
                 }
                 if (goal.notes.isNotBlank()) {
                     Spacer(Modifier.height(10.dp))
@@ -384,7 +385,7 @@ private fun StepRow(goal: Goal, step: GoalStep, first: Boolean, last: Boolean, t
             if (step.why.isNotBlank() && !step.done) {
                 Text("why: ${step.why}", style = MaterialTheme.typography.labelMedium, color = scheme.primary, maxLines = 2)
             }
-            parseDate(step.due)?.let { if (!step.done) Text(dueLabel(it, today), style = MaterialTheme.typography.labelMedium, color = if (it < today) Ember else scheme.onSurfaceVariant) }
+            parseDate(step.due)?.let { if (!step.done) Text(dueLabel(it, today), style = MaterialTheme.typography.labelMedium, color = if (it < today) StreakColor else scheme.onSurfaceVariant) }
         }
         if (!step.done) {
             if (planned) Tag("planned", scheme.tertiary)

@@ -32,7 +32,7 @@ kotlin {
             api(libs.compose.material3)
             api(libs.compose.icons.core)
             api(libs.coroutines.core)
-            implementation(libs.serialization.json)
+            api(libs.serialization.json)
             api(libs.datetime)
             implementation(libs.ktor.client.core)
         }

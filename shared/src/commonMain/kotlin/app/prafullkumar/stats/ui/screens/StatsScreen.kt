@@ -34,7 +34,6 @@ import app.prafullkumar.stats.ui.theme.CalorieColor
 import app.prafullkumar.stats.ui.theme.FiberColor
 import app.prafullkumar.stats.ui.theme.FocusColor
 import app.prafullkumar.stats.ui.theme.GoalColor
-import app.prafullkumar.stats.ui.theme.NeonBrush
 import app.prafullkumar.stats.ui.theme.ProteinColor
 import app.prafullkumar.stats.ui.theme.StreakColor
 import kotlinx.datetime.LocalDate
@@ -79,7 +78,7 @@ fun StatsScreen(today: LocalDate, contentPadding: PaddingValues) {
         }
 
         item {
-            SectionCard(glow = true) {
+            SectionCard(highlight = true) {
                 SectionHeader("Streaks", "today counts once it's done")
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -126,7 +125,7 @@ fun StatsScreen(today: LocalDate, contentPadding: PaddingValues) {
                             Text(minutesLabel(m), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Spacer(Modifier.height(4.dp))
-                        ThinBar(m / max, GoalColor, height = 8.dp, brush = NeonBrush)
+                        ThinBar(m / max, GoalColor, height = 8.dp)
                     }
                 }
             }
