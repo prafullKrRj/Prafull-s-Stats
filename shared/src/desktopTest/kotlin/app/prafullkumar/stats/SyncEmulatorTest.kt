@@ -16,8 +16,9 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Round-trips data through the Firebase Local Emulator Suite. Skipped unless
- * PRAFULL_EMULATOR=1 and the emulators are running:
+ * Round-trips data through Firebase. Skipped unless asked for — against the
+ * local emulators (PRAFULL_EMULATOR=1) or the real project
+ * (PRAFULL_SYNC_TARGET=live, creates a throwaway account to delete after):
  *
  *   cd firebase && firebase emulators:start --only auth,firestore --project demo-prafull
  *   PRAFULL_EMULATOR=1 ./gradlew :shared:desktopTest --tests '*SyncEmulatorTest*'
@@ -26,7 +27,7 @@ class SyncEmulatorTest {
 
     @Test
     fun pushThenFreshDevicePull_restoresEverything() = runBlocking {
-        if (System.getenv("PRAFULL_EMULATOR") != "1") return@runBlocking
+        val target = System.getenv("PRAFULL_SYNC_TARGET") ?: if (System.getenv("PRAFULL_EMULATOR") == "1") "emulator" else return@runBlocking
         val memory = object : Storage {
             val files = mutableMapOf<String, String>()
             override fun read(name: String): String? = files[name]
@@ -34,8 +35,10 @@ class SyncEmulatorTest {
         }
         StatsRepo.init(memory)
         CloudSync.init(memory)
-        CloudSync.useEmulator("127.0.0.1", 9099, 8080)
-        CloudSync.setProject("fake-api-key", "demo-prafull")
+        if (target == "emulator") {
+            CloudSync.useEmulator("127.0.0.1", 9099, 8080)
+            CloudSync.setProject("fake-api-key", "demo-prafull")
+        }
 
         // Device A: make some data, sign up, sync.
         val day = today()
@@ -68,6 +71,7 @@ class SyncEmulatorTest {
         assertTrue(StatsRepo.tasksFor(day).single().done)
         assertTrue(StatsRepo.meta.dirty.isEmpty())
 
+        println("SYNC_TEST_UID=${CloudSync.config.uid}")
         CloudSync.signOut()
     }
 }

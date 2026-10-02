@@ -52,31 +52,32 @@ firebase/      Firestore security rules
 On the Mac, closing the window keeps the app in the menu bar. Quit from the menu bar
 icon or with ⌘Q.
 
-## Firebase sync (one-time setup)
+## Firebase sync
 
-Sync runs over Firebase's REST APIs, so the same code serves both platforms and no
-`google-services.json` is needed.
+The apps ship connected to the **prafull-stats** Firebase project (asia-south1), with
+Email/Password sign-in and Firestore enabled and `firebase/firestore.rules` deployed.
+On each device: **Settings → Cloud sync**, enter an email and password, tap **Create
+account** the first time and **Sign in** after that.
 
-1. Create a project at [console.firebase.google.com](https://console.firebase.google.com).
-2. **Authentication → Sign-in method → Email/Password → Enable.**
-3. **Firestore Database → Create database** (production mode, any region).
-4. Publish the rules in `firebase/firestore.rules`. Either paste them into
-   *Firestore → Rules*, or run:
-   ```bash
-   cd firebase && firebase login && firebase use --add && firebase deploy --only firestore:rules
-   ```
-5. **Project settings → General**: copy the **Web API key** and the **Project ID**.
-6. In the app, open **Settings → Cloud sync** and paste both. Use **Create account**
-   once, then **Sign in** with the same email on the other device.
+Data lives under `users/{uid}/days/{date}` and `users/{uid}/sections/{name}`, and the
+rules let each account touch only its own tree. When the same document is edited on
+two devices, the newer edit wins. The app pushes about a second and a half after each
+change and pulls every 20 seconds. Without sign-in everything stays on the device.
 
-To try sync without a real project, use the local emulators (JDK 21+):
+Managing the project from this repo:
 
 ```bash
-cd firebase && firebase emulators:start --only auth,firestore --project demo-prafull
-PRAFULL_EMULATOR=1 ./gradlew :shared:desktopTest --tests '*SyncEmulatorTest*'
+cd firebase
+firebase deploy --only firestore:rules,auth      # rules + email/password provider
+firebase emulators:start --only auth,firestore --project demo-prafull   # JDK 21+
 ```
 
-Data lives under `users/{uid}/days/{date}` and `users/{uid}/sections/{name}`. When the
-same document is edited on two devices, the newer edit wins. The app pushes about a
-second and a half after each change and pulls every 20 seconds. Without sign-in
-everything stays on the device.
+Sync tests (both skipped by default):
+
+```bash
+PRAFULL_EMULATOR=1 ./gradlew :shared:desktopTest --tests '*SyncEmulatorTest*'      # local emulators
+PRAFULL_SYNC_TARGET=live ./gradlew :shared:desktopTest --tests '*SyncEmulatorTest*' # real project; delete the test account after
+```
+
+To point the app at a different project, use **Use my own Firebase project** in
+Settings, or change `shared/.../sync/FirebaseProject.kt`.
