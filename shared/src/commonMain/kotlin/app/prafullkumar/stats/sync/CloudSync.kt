@@ -89,6 +89,20 @@ object CloudSync {
     var error by mutableStateOf<String?>(null)
         private set
 
+    private var authBase = "https://identitytoolkit.googleapis.com/v1"
+    private var tokenBase = "https://securetoken.googleapis.com/v1"
+    private var api = "https://firestore.googleapis.com/v1"
+
+    /**
+     * Points everything at the Firebase Local Emulator Suite (for tests and
+     * offline development), e.g. useEmulator("127.0.0.1", 9099, 8080).
+     */
+    fun useEmulator(host: String, authPort: Int, firestorePort: Int) {
+        authBase = "http://$host:$authPort/identitytoolkit.googleapis.com/v1"
+        tokenBase = "http://$host:$authPort/securetoken.googleapis.com/v1"
+        api = "http://$host:$firestorePort/v1"
+    }
+
     fun init(storage: Storage, defaults: CloudConfig = CloudConfig()) {
         if (this.storage != null) return
         this.storage = storage
@@ -129,7 +143,7 @@ object CloudSync {
                 put("returnSecureToken", true)
             }
             val resp = io {
-                client.post("https://identitytoolkit.googleapis.com/v1/$endpoint?key=${config.apiKey}") {
+                client.post("$authBase/$endpoint?key=${config.apiKey}") {
                     contentType(ContentType.Application.Json)
                     setBody(body.toString())
                 }
@@ -171,7 +185,7 @@ object CloudSync {
         idToken?.let { if (nowMillis() < idTokenExpires) return it }
         val resp = io {
             client.submitForm(
-                url = "https://securetoken.googleapis.com/v1/token?key=${config.apiKey}",
+                url = "$tokenBase/token?key=${config.apiKey}",
                 formParameters = parameters {
                     append("grant_type", "refresh_token")
                     append("refresh_token", config.refreshToken)
@@ -230,7 +244,6 @@ object CloudSync {
 
     private val base get() = "projects/${config.projectId}/databases/(default)/documents"
     private val userPath get() = "$base/users/${config.uid}"
-    private val api = "https://firestore.googleapis.com/v1"
 
     private fun docPath(key: String): String =
         if (key.startsWith("d:")) "$userPath/days/${key.removePrefix("d:")}"

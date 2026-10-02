@@ -16,3 +16,5 @@
 /captures
 /local.properties
 local.properties
+firebase/*.log
+firebase/.firebase/

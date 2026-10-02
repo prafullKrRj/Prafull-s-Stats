@@ -69,6 +69,13 @@ Sync runs over Firebase's REST APIs, so the same code serves both platforms and 
 6. In the app, open **Settings → Cloud sync** and paste both. Use **Create account**
    once, then **Sign in** with the same email on the other device.
 
+To try sync without a real project, use the local emulators (JDK 21+):
+
+```bash
+cd firebase && firebase emulators:start --only auth,firestore --project demo-prafull
+PRAFULL_EMULATOR=1 ./gradlew :shared:desktopTest --tests '*SyncEmulatorTest*'
+```
+
 Data lives under `users/{uid}/days/{date}` and `users/{uid}/sections/{name}`. When the
 same document is edited on two devices, the newer edit wins. The app pushes about a
 second and a half after each change and pulls every 20 seconds. Without sign-in
