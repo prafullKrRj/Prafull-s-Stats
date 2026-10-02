@@ -155,15 +155,20 @@ fun HabitsScreen(
                 val doneCount = due.count { StatsRepo.habitDone(selectedDate, it) }
                 SectionHeader("Habits", if (due.isEmpty()) null else "$doneCount / ${due.size} done")
                 Spacer(Modifier.height(6.dp))
+                val ideas = suggestions.filter { (name, _, _) ->
+                    StatsRepo.habits.none { it.name.equals(name, ignoreCase = true) }
+                }
                 if (StatsRepo.activeHabits().isEmpty()) {
                     Hint("No habits yet. Start with one or two — tap an idea or make your own.")
+                }
+                if (StatsRepo.activeHabits().size < 5 && ideas.isNotEmpty()) {
                     Spacer(Modifier.height(10.dp))
                     Row(
                         Modifier.horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        suggestions.forEach { (name, target, unit) ->
-                            ChoiceChip(name, false) {
+                        ideas.forEach { (name, target, unit) ->
+                            ChoiceChip("+ $name", false) {
                                 StatsRepo.upsertHabit(
                                     Habit(
                                         id = StatsRepo.newId("habit"),
@@ -176,7 +181,9 @@ fun HabitsScreen(
                             }
                         }
                     }
-                } else if (due.isEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                }
+                if (StatsRepo.activeHabits().isNotEmpty() && due.isEmpty()) {
                     Hint("Nothing due on this day.")
                 }
                 due.forEach { habit ->

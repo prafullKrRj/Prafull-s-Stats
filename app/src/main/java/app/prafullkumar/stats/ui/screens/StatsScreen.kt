@@ -192,7 +192,7 @@ fun StatsScreen(
 
         item {
             SectionCard {
-                SectionHeader("Averages", "${fedDays} days with food logged")
+                SectionHeader("Averages", "$fedDays day${if (fedDays == 1) "" else "s"} with food logged")
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     StatTile(if (fedDays == 0) "—" else "${avgKcal.toInt()}", "kcal / day", CalorieColor, Modifier.weight(1f))
@@ -311,7 +311,7 @@ fun StatsScreen(
     }
 }
 
-/** 16 whole weeks ending this Sunday; null outside tracking so it stays blank. */
+/** 16 whole weeks ending this Sunday; null outside tracking so it is drawn faint. */
 private fun heatCells(today: LocalDate): List<Float?> {
     val end = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
     val start = end.minusWeeks(HEAT_WEEKS.toLong()).plusDays(1)

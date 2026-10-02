@@ -197,7 +197,7 @@ fun DayDots(done: List<Boolean>, color: Color, modifier: Modifier = Modifier) {
 /**
  * GitHub-style grid: one column per week, Monday on top. [cells] runs
  * oldest to newest and must start on a Monday; null cells are days outside
- * tracking (before start or in the future) and stay blank.
+ * tracking (before start or in the future) and are drawn faint.
  */
 @Composable
 fun HeatGrid(cells: List<Float?>, color: Color, modifier: Modifier = Modifier) {
@@ -221,7 +221,7 @@ fun HeatGrid(cells: List<Float?>, color: Color, modifier: Modifier = Modifier) {
                             .clip(RoundedCornerShape(3.dp))
                             .background(
                                 when {
-                                    v == null -> Color.Transparent
+                                    v == null -> empty.copy(alpha = 0.35f)
                                     v <= 0f -> empty
                                     else -> color.copy(alpha = 0.2f + 0.8f * v.coerceIn(0f, 1f))
                                 }
