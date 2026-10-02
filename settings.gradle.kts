@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Prafull Stats"
-include(":app")
+rootProject.name = "PrafullStats"
+include(":shared", ":androidApp", ":desktopApp")
  
