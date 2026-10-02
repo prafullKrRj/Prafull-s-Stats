@@ -233,14 +233,11 @@ private fun CloudCard() {
             return@SectionCard
         }
 
-        Hint("Use one Firebase project for both Mac and Android. Setup steps are in the repo README (Firebase section).")
+        Hint("Sign in with the same account on your Mac and phone to keep them in sync. First time? Use Create account.")
         Spacer(Modifier.height(10.dp))
         var apiKey by remember { mutableStateOf(cfg.apiKey) }
         var projectId by remember { mutableStateOf(cfg.projectId) }
-        TextInput(apiKey, { apiKey = it.trim() }, "Web API key")
-        Spacer(Modifier.height(8.dp))
-        TextInput(projectId, { projectId = it.trim() }, "Project ID")
-        Spacer(Modifier.height(12.dp))
+        var custom by remember { mutableStateOf(!cfg.configured) }
         var email by remember { mutableStateOf(cfg.email) }
         var password by remember { mutableStateOf("") }
         TextInput(email, { email = it.trim() }, "Email")
@@ -258,6 +255,14 @@ private fun CloudCard() {
         CloudSync.error?.let {
             Spacer(Modifier.height(6.dp))
             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+        }
+        if (custom) {
+            Spacer(Modifier.height(10.dp))
+            TextInput(apiKey, { apiKey = it.trim() }, "Web API key")
+            Spacer(Modifier.height(8.dp))
+            TextInput(projectId, { projectId = it.trim() }, "Project ID")
+        } else {
+            TextButton(onClick = { custom = true }) { Text("Use my own Firebase project") }
         }
         Spacer(Modifier.height(10.dp))
         val ready = apiKey.isNotBlank() && projectId.isNotBlank() && email.contains('@') && password.length >= 6 && !CloudSync.busy

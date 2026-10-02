@@ -103,13 +103,18 @@ object CloudSync {
         api = "http://$host:$firestorePort/v1"
     }
 
-    fun init(storage: Storage, defaults: CloudConfig = CloudConfig()) {
+    fun init(storage: Storage, defaults: CloudConfig = FirebaseProject.defaults) {
         if (this.storage != null) return
         this.storage = storage
         val saved = storage.read(FILE)?.let {
             runCatching { AppJson.decodeFromString<CloudConfig>(it) }.getOrNull()
         }
-        config = saved ?: defaults
+        // A saved account keeps its own project; otherwise use the built-in one.
+        config = when {
+            saved == null -> defaults
+            saved.configured -> saved
+            else -> saved.copy(apiKey = defaults.apiKey, projectId = defaults.projectId)
+        }
         if (config.signedIn) {
             status = "Signed in as ${config.email}"
             start()
