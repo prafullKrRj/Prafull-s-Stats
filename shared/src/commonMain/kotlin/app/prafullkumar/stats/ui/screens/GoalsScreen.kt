@@ -1,6 +1,7 @@
 package app.prafullkumar.stats.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -37,11 +39,15 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.prafullkumar.stats.data.Goal
+import app.prafullkumar.stats.data.GoalArea
+import app.prafullkumar.stats.data.GoalHealth
+import app.prafullkumar.stats.data.GoalMilestone
 import app.prafullkumar.stats.data.GoalStatus
 import app.prafullkumar.stats.data.GoalStep
 import app.prafullkumar.stats.data.StatsRepo
 import app.prafullkumar.stats.data.dueLabel
 import app.prafullkumar.stats.data.formatNumber
+import app.prafullkumar.stats.data.goalPriorityName
 import app.prafullkumar.stats.data.minutesLabel
 import app.prafullkumar.stats.data.parseDate
 import app.prafullkumar.stats.data.plural
@@ -58,23 +64,57 @@ import app.prafullkumar.stats.ui.components.SectionCard
 import app.prafullkumar.stats.ui.components.SectionHeader
 import app.prafullkumar.stats.ui.components.StatTile
 import app.prafullkumar.stats.ui.components.Tag
+import app.prafullkumar.stats.ui.components.TextInput
 import app.prafullkumar.stats.ui.components.ThinBar
+import app.prafullkumar.stats.ui.components.WeightChart
 import app.prafullkumar.stats.ui.components.WhyLine
+import app.prafullkumar.stats.ui.theme.CalorieColor
+import app.prafullkumar.stats.ui.theme.FatColor
 import app.prafullkumar.stats.ui.theme.StreakColor
 import app.prafullkumar.stats.ui.theme.FocusColor
 import app.prafullkumar.stats.ui.theme.GoalColor
+import androidx.compose.ui.graphics.Color
 import kotlinx.datetime.LocalDate
+
+private enum class GoalSort(val title: String) {
+    DEADLINE("Deadline"),
+    PRIORITY("Priority"),
+    PROGRESS("Least progress")
+}
+
+@Composable
+private fun healthColor(health: GoalHealth): Color = when (health) {
+    GoalHealth.DONE -> GoalColor
+    GoalHealth.ON_TRACK -> CalorieColor
+    GoalHealth.NEEDS_PUSH -> FatColor
+    GoalHealth.BEHIND -> StreakColor
+    GoalHealth.OVERDUE -> MaterialTheme.colorScheme.error
+    GoalHealth.OPEN -> MaterialTheme.colorScheme.onSurfaceVariant
+}
 
 @Composable
 fun GoalsScreen(today: LocalDate, contentPadding: PaddingValues) {
     var picking by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf(false) }
     var filter by remember { mutableStateOf(GoalStatus.ACTIVE) }
+    var area by remember { mutableStateOf<GoalArea?>(null) }
+    var sort by remember { mutableStateOf(GoalSort.DEADLINE) }
+    var query by remember { mutableStateOf("") }
 
-    val shown = StatsRepo.goals.filter { it.status == filter }
-        .sortedWith(compareByDescending<Goal> { it.pinned }.thenBy { it.targetDate ?: "9999" })
     val active = StatsRepo.goals.filter { it.status == GoalStatus.ACTIVE }
     val avg = if (active.isEmpty()) 0f else active.map { it.progress }.average().toFloat()
+    val shown = StatsRepo.goals.filter { it.status == filter }
+        .filter { area == null || it.area == area }
+        .filter { query.isBlank() || it.title.contains(query, ignoreCase = true) || it.why.contains(query, ignoreCase = true) }
+        .sortedWith(
+            compareByDescending<Goal> { it.pinned }.then(
+                when (sort) {
+                    GoalSort.DEADLINE -> compareBy { it.targetDate ?: "9999" }
+                    GoalSort.PRIORITY -> compareByDescending { it.priority }
+                    GoalSort.PROGRESS -> compareBy { it.progress }
+                }
+            )
+        )
 
     ScreenColumn(contentPadding) {
         item {
@@ -91,15 +131,52 @@ fun GoalsScreen(today: LocalDate, contentPadding: PaddingValues) {
                     ThinBar(avg, GoalColor, height = 12.dp)
                     Spacer(Modifier.height(8.dp))
                     val stepsLeft = active.sumOf { g -> g.steps.count { !it.done } }
-                    Hint("${plural(stepsLeft, "step")} left across your active goals. Pick one and put it on today.")
+                    val milestonesLeft = active.sumOf { g -> g.milestones.count { !it.done } }
+                    val struggling = active.count {
+                        val h = it.health(today)
+                        h == GoalHealth.BEHIND || h == GoalHealth.OVERDUE || h == GoalHealth.NEEDS_PUSH
+                    }
+                    Hint(
+                        "${plural(stepsLeft, "step")} and ${plural(milestonesLeft, "milestone")} left across your active goals." +
+                            if (struggling > 0) " ${plural(struggling, "goal")} need${if (struggling == 1) "s" else ""} a push." else " Pick one and put it on today."
+                    )
                 }
             }
         }
 
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                GoalStatus.entries.forEach { s ->
-                    ChoiceChip("${s.title} ${StatsRepo.goals.count { it.status == s }}", filter == s) { filter = s }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    GoalStatus.entries.forEach { s ->
+                        ChoiceChip("${s.title} ${StatsRepo.goals.count { it.status == s }}", filter == s) { filter = s }
+                    }
+                }
+                if (StatsRepo.goals.isNotEmpty()) {
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        ChoiceChip("All areas", area == null) { area = null }
+                        GoalArea.entries.forEach { a ->
+                            ChoiceChip("${a.emoji} ${a.title}", area == a) { area = if (area == a) null else a }
+                        }
+                    }
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Sort", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        GoalSort.entries.forEach { s ->
+                            ChoiceChip(s.title, sort == s) { sort = s }
+                        }
+                    }
+                    if (StatsRepo.goals.size > 3) {
+                        TextInput(query, { query = it }, "Search goals…")
+                    }
                 }
             }
         }
@@ -108,11 +185,15 @@ fun GoalsScreen(today: LocalDate, contentPadding: PaddingValues) {
             item {
                 SectionCard {
                     Hint(
-                        if (filter == GoalStatus.ACTIVE)
-                            "No active goals. Start with the one that would change the most if it were done — e.g. shipping your next app on Play Store."
-                        else "Nothing here."
+                        when {
+                            query.isNotBlank() -> "No goals match “$query”. Try another word, or start it as a fresh goal."
+                            area != null -> "No ${filter.title.lowercase()} goals in ${area!!.title}. Loosen the filter, or start one."
+                            filter == GoalStatus.ACTIVE ->
+                                "No active goals. Start with the one that would change the most if it were done — e.g. shipping your next app on Play Store."
+                            else -> "Nothing here."
+                        }
                     )
-                    if (filter == GoalStatus.ACTIVE) {
+                    if (filter == GoalStatus.ACTIVE && query.isBlank() && area == null) {
                         Spacer(Modifier.height(10.dp))
                         AddButton("Pick a goal template", Modifier.fillMaxWidth()) { picking = true }
                     }
@@ -147,11 +228,17 @@ fun GoalsScreen(today: LocalDate, contentPadding: PaddingValues) {
 @Composable
 fun GoalCard(goal: Goal, today: LocalDate, compact: Boolean = false, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
+    val health = goal.health(today)
     SectionCard(Modifier.clickable(onClick = onClick)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Tag("${goal.area.emoji} ${goal.area.title}", GoalColor)
+                    if (goal.status == GoalStatus.ACTIVE) Tag("${health.emoji} ${health.title}", healthColor(health))
+                    if (goal.priority > 0) Tag(
+                        goalPriorityName(goal.priority),
+                        if (goal.priority == 3) StreakColor else scheme.secondary
+                    )
                     parseDate(goal.targetDate)?.let { d ->
                         val late = d < today && goal.status == GoalStatus.ACTIVE
                         Tag(dueLabel(d, today), if (late) StreakColor else scheme.onSurfaceVariant)
@@ -176,14 +263,23 @@ fun GoalCard(goal: Goal, today: LocalDate, compact: Boolean = false, onClick: ()
             )
         }
         Spacer(Modifier.height(8.dp))
-        val next = goal.nextStep()
         val detail = buildList {
             if (goal.hasMetric) add("${formatNumber(goal.metricCurrent)} / ${formatNumber(goal.metricTarget)} ${goal.metricName}")
             if (goal.steps.isNotEmpty()) add("${goal.steps.count { it.done }}/${goal.steps.size} steps")
+            if (goal.milestones.isNotEmpty()) add("🏁 ${goal.milestones.count { it.done }}/${goal.milestones.size}")
         }.joinToString(" · ")
         if (detail.isNotBlank()) Hint(detail)
-        if (next != null && goal.status == GoalStatus.ACTIVE) {
-            Text("Next → ${next.title}", style = MaterialTheme.typography.labelLarge, color = scheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (goal.status == GoalStatus.ACTIVE) {
+            val nextMilestone = goal.nextMilestone()
+            val nextStep = goal.nextStep()
+            val next = when {
+                nextMilestone != null -> "🏁 ${nextMilestone.title}"
+                nextStep != null -> "Next → ${nextStep.title}"
+                else -> null
+            }
+            next?.let {
+                Text(it, style = MaterialTheme.typography.labelLarge, color = scheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
