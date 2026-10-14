@@ -236,12 +236,16 @@ private fun GoalsGlance(today: LocalDate) {
                     .padding(vertical = 8.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${g.area.emoji} ${g.title}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text("${g.displayIcon()} ${g.title}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     Text("${(g.progress * 100).toInt()}%", style = MaterialTheme.typography.labelLarge, color = GoalColor)
                 }
                 Spacer(Modifier.height(5.dp))
                 ThinBar(g.progress, GoalColor, height = 7.dp)
-                g.nextStep()?.let { step ->
+                val nextMilestone = g.nextMilestone()
+                val nextStep = g.nextStep()
+                if (nextMilestone != null) {
+                    Text("🏁 ${nextMilestone.title}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                } else nextStep?.let { step ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Next: ${step.title}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         if (!StatsRepo.isStepPlanned(step.id)) SmallAction("→ Today") { StatsRepo.planStep(g.id, step.id, today) }

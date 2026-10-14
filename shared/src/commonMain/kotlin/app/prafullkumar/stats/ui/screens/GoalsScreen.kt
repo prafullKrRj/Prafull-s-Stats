@@ -370,6 +370,29 @@ fun GoalCard(goal: Goal, today: LocalDate, compact: Boolean = false, onClick: ()
     }
 }
 
+/** Labeled mini-bar splitting overall progress into its parts. */
+@Composable
+private fun ProgressSplit(label: String, fraction: Float) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.width(8.dp))
+        ThinBar(fraction, GoalColor, Modifier.weight(1f), height = 8.dp)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "${(fraction * 100).toInt()}%",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
 /** One dot per milestone, filled in proportion to how many are reached. */
 @Composable
 private fun MilestoneDots(done: Int, total: Int) {
@@ -402,6 +425,8 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
     var logging by remember { mutableStateOf(false) }
     var deletingCheckin by remember { mutableStateOf<GoalCheckin?>(null) }
     var addingTask by remember { mutableStateOf(false) }
+    var linkingHabits by remember { mutableStateOf(false) }
+    var addingHabit by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     val scheme = MaterialTheme.colorScheme
     val linked = StatsRepo.allTasks().filter { it.second.goalId == goalId }
@@ -419,7 +444,37 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
 
         item {
             SectionCard(highlight = true) {
-                Text(goal.title, style = MaterialTheme.typography.headlineSmall, color = scheme.onSurface)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(GoalColor.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(goal.displayIcon(), style = MaterialTheme.typography.headlineMedium)
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Text(
+                        goal.title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = scheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Tag(goal.area.title, GoalColor)
+                    Tag("${health.emoji} ${health.title}", healthColor(health))
+                    if (goal.priority > 0) Tag(goalPriorityName(goal.priority), if (goal.priority == 3) StreakColor else scheme.secondary)
+                    parseDate(goal.targetDate)?.let { d ->
+                        Tag(dueLabel(d, today), if (d < today && goal.status == GoalStatus.ACTIVE) StreakColor else scheme.onSurfaceVariant)
+                    }
+                }
                 Spacer(Modifier.height(10.dp))
                 if (goal.why.isBlank()) {
                     Text(
@@ -440,22 +495,35 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
                             color = scheme.onSurface,
                             fontWeight = FontWeight.Bold
                         )
-                        if (goal.hasMetric && goal.steps.isNotEmpty()) {
-                            Hint("Steps ${(goal.stepProgress * 100).toInt()}% · ${goal.metricName} ${(goal.metricProgress * 100).toInt()}%")
-                        }
-                        if (goal.milestones.isNotEmpty()) {
-                            Hint("🏁 ${goal.milestones.count { it.done }}/${goal.milestones.size} milestones")
-                        }
                         val expected = goal.expectedProgress(today)
                         if (goal.status == GoalStatus.ACTIVE && expected != null) {
-                            Hint("${health.emoji} ${health.title} — should be ~${(expected * 100).toInt()}% by now")
-                        } else if (goal.status == GoalStatus.ACTIVE) {
-                            Hint("${health.emoji} ${health.title}")
+                            Hint("Should be ~${(expected * 100).toInt()}% by now")
                         }
                         parseDate(goal.targetDate)?.let { Hint("Deadline ${it} · ${dueLabel(it, today)}") }
+                        val streak = goal.activityStreak(today)
+                        if (streak >= 2) Hint("🔥 $streak-day streak")
+                        else if (goal.activeDates().isNotEmpty()) Hint("${plural(goal.activeDates().size, "active day")}")
+                        goal.requiredDailyPace(today)?.let { pace ->
+                            if (pace == 0.0) Hint("✅ Number already hit")
+                            else if (pace < 0) Hint("Need ${formatNumber(abs(pace))} less ${goal.metricName}/day")
+                            else Hint("Need ${formatNumber(pace)} ${goal.metricName}/day")
+                        }
+                        goal.projectedFinish(today)?.let { proj ->
+                            val deadline = parseDate(goal.targetDate)
+                            val mark = if (deadline != null && proj <= deadline) "✅" else "⚠️"
+                            Hint("$mark At this pace → ~${proj.dayMonth()}")
+                        }
                         Hint("${minutesLabel(focus)} focused · ${linked.count { it.second.done }} tasks done")
-                        Hint("Status: ${goal.status.title}" + if (goal.priority > 0) " · ${goalPriorityName(goal.priority)} priority" else "")
                     }
+                }
+                if (goal.hasMetric && goal.steps.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    ProgressSplit("🗂 Steps", goal.stepProgress)
+                    Spacer(Modifier.height(8.dp))
+                    ProgressSplit("🔢 ${goal.metricName}", goal.metricProgress)
+                } else if (goal.milestones.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    ProgressSplit("🏁 Milestones", goal.milestoneProgress)
                 }
             }
         }
@@ -574,6 +642,11 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
             SectionCard {
                 SectionHeader("Tasks for this goal", "${linked.count { !it.second.done }} open")
                 Spacer(Modifier.height(4.dp))
+                val week = daysBetween(today.minusDays(6), today)
+                val focus7 = StatsRepo.focusOnGoal(goalId, week)
+                val done7 = linked.count { (date, t) -> t.done && date != null && date >= week.first() }
+                Hint("Last 7 days · ${minutesLabel(focus7)} focused · ${plural(done7, "task")} done")
+                Spacer(Modifier.height(4.dp))
                 if (linked.isEmpty()) Hint("Tasks you link to this goal (or plan from a step) show up here.")
                 sortTasks(linked.map { it.second }).take(12).forEach { t ->
                     TaskRow(t, onEdit = {}, showWhy = false)
@@ -583,17 +656,67 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
             }
         }
 
+        val linkedHabits = StatsRepo.habits.filter { it.goalId == goalId && !it.archived }
+        item {
+            SectionCard {
+                SectionHeader("Habits feeding this goal", "${linkedHabits.size}")
+                Spacer(Modifier.height(4.dp))
+                if (linkedHabits.isEmpty()) {
+                    Hint("Link a habit and its daily reps push this goal forward.")
+                }
+                linkedHabits.forEach { h ->
+                    val streak = StatsRepo.habitStreak(h, today)
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { StatsRepo.bumpHabit(today, h) }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CheckDot(StatsRepo.habitDone(today, h), size = 26.dp, color = GoalColor)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(h.name, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurface)
+                            Hint(
+                                buildString {
+                                    if (h.isCounter) append("${h.target}${if (h.unit.isNotBlank()) " ${h.unit}" else ""}/day · ")
+                                    append(if (streak.current > 0) "🔥 ${streak.current}-day streak" else "no streak yet")
+                                }
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    AddButton("Link habit", Modifier.weight(1f)) { linkingHabits = true }
+                    AddButton("New habit", Modifier.weight(1f)) { addingHabit = true }
+                }
+            }
+        }
+
         val journey = goal.timeline()
         if (journey.size > 1) {
             item {
                 SectionCard {
                     SectionHeader("Journey", plural(journey.size, "moment"))
                     Spacer(Modifier.height(8.dp))
-                    journey.take(15).forEach { e ->
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 3.dp)) {
-                            Text(e.emoji, style = MaterialTheme.typography.bodyMedium)
+                    val moments = journey.take(15)
+                    moments.forEachIndexed { i, e ->
+                        Row(Modifier.height(IntrinsicSize.Min)) {
+                            RailColumn(last = i == moments.lastIndex) {
+                                Box(
+                                    Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(scheme.surfaceVariant),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(e.emoji, style = MaterialTheme.typography.bodyMedium)
+                                }
+                            }
                             Spacer(Modifier.width(10.dp))
-                            Column(Modifier.weight(1f)) {
+                            Column(Modifier.weight(1f).padding(vertical = 3.dp)) {
                                 Text(
                                     e.text,
                                     style = MaterialTheme.typography.bodyMedium,
@@ -701,6 +824,14 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
             StatsRepo.addTask(where, t.copy(why = t.why.ifBlank { goal.why })); addingTask = false
         })
     }
+    if (linkingHabits) {
+        LinkHabitDialog(goalId = goal.id, onDismiss = { linkingHabits = false })
+    }
+    if (addingHabit) {
+        HabitDialog(null, today, onDismiss = { addingHabit = false }, onSave = {
+            StatsRepo.upsertHabit(it); addingHabit = false
+        }, presetGoalId = goal.id)
+    }
     if (confirmDelete) {
         ConfirmDialog(
             title = "Delete ${goal.title}?",
@@ -712,22 +843,48 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
     }
 }
 
+/** Left rail with a node on top and a connector below — the timeline look. */
+@Composable
+private fun RailColumn(last: Boolean, node: @Composable () -> Unit) {
+    Column(
+        Modifier
+            .width(28.dp)
+            .fillMaxHeight(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        node()
+        if (!last) {
+            Spacer(Modifier.height(4.dp))
+            Box(
+                Modifier
+                    .width(2.dp)
+                    .weight(1f)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.outlineVariant)
+            )
+            Spacer(Modifier.height(4.dp))
+        }
+    }
+}
+
 @Composable
 private fun MilestoneRow(goal: Goal, milestone: GoalMilestone, first: Boolean, last: Boolean, today: LocalDate, onEdit: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Row(
         Modifier
             .fillMaxWidth()
+            .height(IntrinsicSize.Min)
             .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onEdit)
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 6.dp)
     ) {
-        Box(Modifier.clip(CircleShape).clickable { StatsRepo.toggleMilestone(goal.id, milestone.id) }) {
-            CheckDot(milestone.done, size = 26.dp, color = GoalColor)
+        RailColumn(last = last) {
+            Box(Modifier.clip(CircleShape).clickable { StatsRepo.toggleMilestone(goal.id, milestone.id) }) {
+                CheckDot(milestone.done, size = 26.dp, color = GoalColor)
+            }
         }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f).padding(vertical = 2.dp)) {
             Text(
                 "🏁 ${milestone.title}",
                 style = MaterialTheme.typography.bodyLarge,
@@ -765,6 +922,44 @@ private fun MilestoneRow(goal: Goal, milestone: GoalMilestone, first: Boolean, l
             )
         }
     }
+}
+
+/** Picks which habits feed a goal. A habit feeds one goal — linking moves it. */
+@Composable
+private fun LinkHabitDialog(goalId: String, onDismiss: () -> Unit) {
+    val candidates = StatsRepo.activeHabits()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(26.dp),
+        title = { Text("Link habits") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (candidates.isEmpty()) {
+                    Hint("No habits yet — create one from the button below, then link it here.")
+                }
+                candidates.forEach { h: Habit ->
+                    val linked = h.goalId == goalId
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { StatsRepo.upsertHabit(h.copy(goalId = if (linked) null else goalId)) }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CheckDot(linked, size = 26.dp, color = GoalColor)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(h.name, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                            if (h.goalId != null && !linked) Hint("Linked elsewhere — tapping moves it here")
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Done") } }
+    )
 }
 
 @Composable
