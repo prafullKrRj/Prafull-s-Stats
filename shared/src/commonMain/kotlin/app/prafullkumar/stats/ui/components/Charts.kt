@@ -33,7 +33,8 @@ fun WeightChart(
     points: List<Double>,
     goal: Double?,
     color: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    emptyText: String = "Log weight on two days to see the graph."
 ) {
     val grid = MaterialTheme.colorScheme.outlineVariant
     val goalColor = MaterialTheme.colorScheme.secondary
@@ -45,7 +46,7 @@ fun WeightChart(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                "Log weight on two days to see the graph.",
+                emptyText,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

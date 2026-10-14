@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.prafullkumar.stats.data.Goal
 import app.prafullkumar.stats.data.GoalArea
+import app.prafullkumar.stats.data.GoalMilestone
 import app.prafullkumar.stats.data.GoalStatus
 import app.prafullkumar.stats.data.GoalStep
 import app.prafullkumar.stats.data.GoalTemplate
@@ -191,9 +192,12 @@ fun GoalDialog(
     var metricName by remember { mutableStateOf(initial?.metricName.orEmpty()) }
     var metricStart by remember { mutableStateOf(initial?.metricStart?.takeIf { it != 0.0 }?.let(::formatNumber).orEmpty()) }
     var metricTarget by remember { mutableStateOf(initial?.metricTarget?.takeIf { it != 0.0 }?.let(::formatNumber).orEmpty()) }
+    var priority by remember { mutableStateOf(initial?.priority ?: 0) }
+    var startDate by remember { mutableStateOf(initial?.startDate.orEmpty()) }
     var deadline by remember { mutableStateOf(initial?.targetDate.orEmpty()) }
     var notes by remember { mutableStateOf(initial?.notes.orEmpty()) }
     val deadlineOk = deadline.isBlank() || parseDate(deadline) != null
+    val startOk = startDate.isBlank() || parseDate(startDate) != null
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -210,6 +214,11 @@ fun GoalDialog(
                     GoalArea.entries.forEach { a -> ChoiceChip("${a.emoji} ${a.title}", area == a) { area = a } }
                 }
                 Spacer(Modifier.height(14.dp))
+                Label("Priority")
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    priorityNames.forEachIndexed { i, n -> ChoiceChip(n, priority == i) { priority = i } }
+                }
+                Spacer(Modifier.height(14.dp))
                 Label("Measure it (optional)")
                 TextInput(metricName, { metricName = it }, "What number? e.g. Installs, kg, ₹/month")
                 Spacer(Modifier.height(8.dp))
@@ -218,8 +227,15 @@ fun GoalDialog(
                     NumberInput(metricTarget, { metricTarget = it }, "To", Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(10.dp))
-                TextInput(deadline, { deadline = it.take(10) }, "Deadline (YYYY-MM-DD)")
-                if (!deadlineOk) Text("Use YYYY-MM-DD, e.g. ${today.plusDays(90)}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TextInput(startDate, { startDate = it.take(10) }, "Start (YYYY-MM-DD)", Modifier.weight(1f))
+                    TextInput(deadline, { deadline = it.take(10) }, "Deadline (YYYY-MM-DD)", Modifier.weight(1f))
+                }
+                if (!deadlineOk || !startOk) Text(
+                    "Use YYYY-MM-DD, e.g. ${today.plusDays(90)}",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.labelMedium
+                )
                 Spacer(Modifier.height(10.dp))
                 TextInput(notes, { notes = it }, "Notes", singleLine = false, minLines = 2)
                 Spacer(Modifier.height(6.dp))
@@ -236,16 +252,18 @@ fun GoalDialog(
                             title = title.trim(),
                             why = why.trim(),
                             area = area,
+                            priority = priority,
                             metricName = metricName.trim(),
                             metricStart = start,
                             metricTarget = metricTarget.toDoubleOrNull() ?: 0.0,
                             metricCurrent = if (initial == null) start else base.metricCurrent,
+                            startDate = parseDate(startDate)?.toString(),
                             targetDate = parseDate(deadline)?.toString(),
                             notes = notes.trim()
                         )
                     )
                 },
-                enabled = title.isNotBlank() && deadlineOk
+                enabled = title.isNotBlank() && deadlineOk && startOk
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
@@ -276,6 +294,89 @@ fun StepDialog(initial: GoalStep?, onDismiss: () -> Unit, onSave: (String, Strin
         },
         confirmButton = {
             TextButton(onClick = { onSave(title.trim(), why.trim(), parseDate(due)?.toString()) }, enabled = title.isNotBlank() && dueOk) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
+fun MilestoneDialog(
+    initial: GoalMilestone?,
+    metricName: String,
+    onDismiss: () -> Unit,
+    onSave: (String, String, String?, Double?) -> Unit,
+    onDelete: (() -> Unit)? = null
+) {
+    var title by remember { mutableStateOf(initial?.title.orEmpty()) }
+    var why by remember { mutableStateOf(initial?.why.orEmpty()) }
+    var due by remember { mutableStateOf(initial?.due.orEmpty()) }
+    var threshold by remember {
+        mutableStateOf(initial?.metricValue?.let(::formatNumber).orEmpty())
+    }
+    val dueOk = due.isBlank() || parseDate(due) != null
+    val hasMetric = metricName.isNotBlank()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(26.dp),
+        title = { Text(if (initial == null) "New milestone" else "Edit milestone") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                TextInput(title, { title = it }, "Milestone — the checkpoint worth celebrating")
+                Spacer(Modifier.height(10.dp))
+                TextInput(why, { why = it }, "Why it matters")
+                Spacer(Modifier.height(10.dp))
+                TextInput(due, { due = it.take(10) }, "Due (YYYY-MM-DD, optional)")
+                if (hasMetric) {
+                    Spacer(Modifier.height(10.dp))
+                    NumberInput(threshold, { threshold = it }, "Auto-tick when $metricName reaches…")
+                    Spacer(Modifier.height(6.dp))
+                    Hint("Blank means you tick it by hand. Set a number and it ticks itself.")
+                }
+                if (onDelete != null) {
+                    TextButton(onClick = onDelete) { Text("Delete milestone", color = MaterialTheme.colorScheme.error) }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(title.trim(), why.trim(), parseDate(due)?.toString(), threshold.toDoubleOrNull()) },
+                enabled = title.isNotBlank() && dueOk
+            ) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+/** Logs where the goal stands today: a number, a note, or both. */
+@Composable
+fun CheckinDialog(
+    metricName: String,
+    current: Double,
+    onDismiss: () -> Unit,
+    onSave: (Double?, String) -> Unit
+) {
+    var value by remember { mutableStateOf(formatNumber(current)) }
+    var note by remember { mutableStateOf("") }
+    val parsed = value.toDoubleOrNull()
+    val hasMetric = metricName.isNotBlank()
+    val ok = if (hasMetric) parsed != null || note.isNotBlank() else note.isNotBlank()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(26.dp),
+        title = { Text("Log progress") },
+        text = {
+            Column {
+                if (hasMetric) {
+                    NumberInput(value, { value = it }, "Current $metricName")
+                    Spacer(Modifier.height(10.dp))
+                }
+                TextInput(note, { note = it }, "Note (optional) — what moved?", singleLine = false, minLines = 2)
+                Spacer(Modifier.height(6.dp))
+                Hint("Every update lands in the goal's journey below.")
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(parsed, note.trim()) }, enabled = ok) { Text("Log") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
