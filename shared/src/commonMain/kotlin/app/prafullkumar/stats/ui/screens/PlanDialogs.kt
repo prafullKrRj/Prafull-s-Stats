@@ -50,6 +50,8 @@ import kotlinx.datetime.LocalDate
 
 val priorityNames = listOf("None", "Low", "Medium", "High")
 
+val goalIcons = listOf("🎯", "🔥", "🚀", "📱", "💪", "🏋️", "📚", "🧠", "🎓", "💰", "💸", "💼", "🧘", "🌱", "⭐", "🏆", "🎨", "🎵", "🏃", "🧗", "💻", "✈️", "🏠", "❤️")
+
 /** Valid "HH:mm" or null. Accepts "9", "930", "9:30". */
 fun parseTime(raw: String): String? {
     val digits = raw.filter { it.isDigit() }
@@ -188,6 +190,7 @@ fun GoalDialog(
 ) {
     var title by remember { mutableStateOf(initial?.title.orEmpty()) }
     var why by remember { mutableStateOf(initial?.why.orEmpty()) }
+    var icon by remember { mutableStateOf(initial?.icon.orEmpty()) }
     var area by remember { mutableStateOf(initial?.area ?: GoalArea.APPS) }
     var metricName by remember { mutableStateOf(initial?.metricName.orEmpty()) }
     var metricStart by remember { mutableStateOf(initial?.metricStart?.takeIf { it != 0.0 }?.let(::formatNumber).orEmpty()) }
@@ -208,6 +211,11 @@ fun GoalDialog(
                 TextInput(title, { title = it }, "Goal")
                 Spacer(Modifier.height(10.dp))
                 TextInput(why, { why = it }, "Why do you want this? Be honest.", singleLine = false, minLines = 2)
+                Spacer(Modifier.height(14.dp))
+                Label("Icon")
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    goalIcons.forEach { e -> ChoiceChip(e, icon == e) { icon = if (icon == e) "" else e } }
+                }
                 Spacer(Modifier.height(14.dp))
                 Label("Area")
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -251,6 +259,7 @@ fun GoalDialog(
                         base.copy(
                             title = title.trim(),
                             why = why.trim(),
+                            icon = icon.trim(),
                             area = area,
                             priority = priority,
                             metricName = metricName.trim(),
@@ -393,7 +402,7 @@ fun TemplatePicker(onDismiss: () -> Unit, onBlank: () -> Unit, onPick: (GoalTemp
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 TemplateRow("✏️  Blank goal", "Your own goal, your own steps.", onBlank)
                 GoalTemplates.all.forEach { t ->
-                    TemplateRow("${t.area.emoji}  ${t.name}", "${t.steps.size} steps · ${t.why}") { onPick(t) }
+                    TemplateRow("${t.icon.ifBlank { t.area.emoji }}  ${t.name}", "${t.steps.size} steps · ${t.why}") { onPick(t) }
                 }
             }
         },

@@ -1,13 +1,16 @@
 package app.prafullkumar.stats.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -16,11 +19,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,13 +50,18 @@ import app.prafullkumar.stats.data.GoalHealth
 import app.prafullkumar.stats.data.GoalMilestone
 import app.prafullkumar.stats.data.GoalStatus
 import app.prafullkumar.stats.data.GoalStep
+import app.prafullkumar.stats.data.Habit
 import app.prafullkumar.stats.data.StatsRepo
+import app.prafullkumar.stats.data.dayMonth
+import app.prafullkumar.stats.data.daysBetween
 import app.prafullkumar.stats.data.dueLabel
 import app.prafullkumar.stats.data.formatNumber
 import app.prafullkumar.stats.data.goalPriorityName
+import app.prafullkumar.stats.data.minusDays
 import app.prafullkumar.stats.data.minutesLabel
 import app.prafullkumar.stats.data.parseDate
 import app.prafullkumar.stats.data.plural
+import kotlin.math.abs
 import app.prafullkumar.stats.ui.Nav
 import app.prafullkumar.stats.ui.components.AddButton
 import app.prafullkumar.stats.ui.components.CheckDot
@@ -78,6 +88,7 @@ import androidx.compose.ui.graphics.Color
 import kotlinx.datetime.LocalDate
 
 private enum class GoalSort(val title: String) {
+    ATTENTION("Needs attention"),
     DEADLINE("Deadline"),
     PRIORITY("Priority"),
     PROGRESS("Least progress")
@@ -99,8 +110,9 @@ fun GoalsScreen(today: LocalDate, contentPadding: PaddingValues) {
     var creating by remember { mutableStateOf(false) }
     var filter by remember { mutableStateOf(GoalStatus.ACTIVE) }
     var area by remember { mutableStateOf<GoalArea?>(null) }
-    var sort by remember { mutableStateOf(GoalSort.DEADLINE) }
+    var sort by remember { mutableStateOf(GoalSort.ATTENTION) }
     var query by remember { mutableStateOf("") }
+    var loggingGoal by remember { mutableStateOf<Goal?>(null) }
 
     val active = StatsRepo.goals.filter { it.status == GoalStatus.ACTIVE }
     val avg = if (active.isEmpty()) 0f else active.map { it.progress }.average().toFloat()
@@ -110,6 +122,7 @@ fun GoalsScreen(today: LocalDate, contentPadding: PaddingValues) {
         .sortedWith(
             compareByDescending<Goal> { it.pinned }.then(
                 when (sort) {
+                    GoalSort.ATTENTION -> compareBy<Goal> { it.health(today).attention }.thenBy { it.targetDate ?: "9999" }
                     GoalSort.DEADLINE -> compareBy { it.targetDate ?: "9999" }
                     GoalSort.PRIORITY -> compareByDescending { it.priority }
                     GoalSort.PROGRESS -> compareBy { it.progress }
@@ -126,21 +139,41 @@ fun GoalsScreen(today: LocalDate, contentPadding: PaddingValues) {
 
         if (active.isNotEmpty()) {
             item {
+                val stepsLeft = active.sumOf { g -> g.steps.count { !it.done } }
+                val milestonesLeft = active.sumOf { g -> g.milestones.count { !it.done } }
+                val struggling = active.count {
+                    val h = it.health(today)
+                    h == GoalHealth.BEHIND || h == GoalHealth.OVERDUE || h == GoalHealth.NEEDS_PUSH
+                }
                 SectionCard(highlight = true) {
-                    SectionHeader("Overall progress", "${(avg * 100).toInt()}%")
-                    Spacer(Modifier.height(10.dp))
-                    ThinBar(avg, GoalColor, height = 12.dp)
-                    Spacer(Modifier.height(8.dp))
-                    val stepsLeft = active.sumOf { g -> g.steps.count { !it.done } }
-                    val milestonesLeft = active.sumOf { g -> g.milestones.count { !it.done } }
-                    val struggling = active.count {
-                        val h = it.health(today)
-                        h == GoalHealth.BEHIND || h == GoalHealth.OVERDUE || h == GoalHealth.NEEDS_PUSH
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ProgressRing((avg * 100).toInt().toDouble(), 100.0, GoalColor, "", "%", size = 88.dp, showTarget = false)
+                        Spacer(Modifier.width(16.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "OVERALL PROGRESS",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                "${(avg * 100).toInt()}% across ${plural(active.size, "goal")}",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Hint(
+                                if (struggling > 0) "${plural(struggling, "goal")} need${if (struggling == 1) "s" else ""} a push — sorted first below."
+                                else "Everything is on pace. Pick one and put it on today."
+                            )
+                        }
                     }
-                    Hint(
-                        "${plural(stepsLeft, "step")} and ${plural(milestonesLeft, "milestone")} left across your active goals." +
-                            if (struggling > 0) " ${plural(struggling, "goal")} need${if (struggling == 1) "s" else ""} a push." else " Pick one and put it on today."
-                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StatTile("$stepsLeft", "steps left", GoalColor, Modifier.weight(1f))
+                        StatTile("$milestonesLeft", "milestones left", FocusColor, Modifier.weight(1f))
+                        StatTile("$struggling", "need a push", StreakColor, Modifier.weight(1f))
+                    }
                 }
             }
         }
@@ -203,8 +236,19 @@ fun GoalsScreen(today: LocalDate, contentPadding: PaddingValues) {
         }
 
         shown.forEach { goal ->
-            item(key = goal.id) { GoalCard(goal, today) { Nav.openGoal(goal.id) } }
+            item(key = goal.id) {
+                GoalCard(goal, today, onClick = { Nav.openGoal(goal.id) }, onLog = { loggingGoal = goal })
+            }
         }
+    }
+
+    loggingGoal?.let { g ->
+        CheckinDialog(
+            metricName = g.metricName,
+            current = g.metricCurrent,
+            onDismiss = { loggingGoal = null },
+            onSave = { value, note -> StatsRepo.logCheckin(g.id, value, note); loggingGoal = null }
+        )
     }
 
     if (picking) {
@@ -227,29 +271,25 @@ fun GoalsScreen(today: LocalDate, contentPadding: PaddingValues) {
 }
 
 @Composable
-fun GoalCard(goal: Goal, today: LocalDate, compact: Boolean = false, onClick: () -> Unit) {
+fun GoalCard(goal: Goal, today: LocalDate, compact: Boolean = false, onClick: () -> Unit, onLog: () -> Unit = {}) {
     val scheme = MaterialTheme.colorScheme
     val health = goal.health(today)
     SectionCard(Modifier.clickable(onClick = onClick)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(if (compact) 40.dp else 48.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(GoalColor.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(goal.displayIcon(), style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall)
+            }
+            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Tag("${goal.area.emoji} ${goal.area.title}", GoalColor)
-                    if (goal.status == GoalStatus.ACTIVE) Tag("${health.emoji} ${health.title}", healthColor(health))
-                    if (goal.priority > 0) Tag(
-                        goalPriorityName(goal.priority),
-                        if (goal.priority == 3) StreakColor else scheme.secondary
-                    )
-                    parseDate(goal.targetDate)?.let { d ->
-                        val late = d < today && goal.status == GoalStatus.ACTIVE
-                        Tag(dueLabel(d, today), if (late) StreakColor else scheme.onSurfaceVariant)
-                    }
-                    if (goal.pinned) Tag("📌", scheme.onSurfaceVariant)
-                }
-                Spacer(Modifier.height(6.dp))
                 Text(goal.title, style = MaterialTheme.typography.titleMedium, color = scheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (!compact && goal.why.isNotBlank()) {
-                    Text(goal.why, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(goal.why, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             Spacer(Modifier.width(10.dp))
@@ -263,13 +303,46 @@ fun GoalCard(goal: Goal, today: LocalDate, compact: Boolean = false, onClick: ()
                 showTarget = false
             )
         }
+        Spacer(Modifier.height(10.dp))
+        ThinBar(goal.progress, GoalColor, height = 8.dp)
         Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Tag(goal.area.title, GoalColor)
+            if (goal.status == GoalStatus.ACTIVE) Tag("${health.emoji} ${health.title}", healthColor(health))
+            if (goal.priority > 0) Tag(
+                goalPriorityName(goal.priority),
+                if (goal.priority == 3) StreakColor else scheme.secondary
+            )
+            parseDate(goal.targetDate)?.let { d ->
+                val late = d < today && goal.status == GoalStatus.ACTIVE
+                Tag(dueLabel(d, today), if (late) StreakColor else scheme.onSurfaceVariant)
+            }
+            if (goal.pinned) Tag("📌 Pinned", scheme.onSurfaceVariant)
+        }
         val detail = buildList {
             if (goal.hasMetric) add("${formatNumber(goal.metricCurrent)} / ${formatNumber(goal.metricTarget)} ${goal.metricName}")
             if (goal.steps.isNotEmpty()) add("${goal.steps.count { it.done }}/${goal.steps.size} steps")
-            if (goal.milestones.isNotEmpty()) add("🏁 ${goal.milestones.count { it.done }}/${goal.milestones.size}")
         }.joinToString(" · ")
-        if (detail.isNotBlank()) Hint(detail)
+        if (detail.isNotBlank()) {
+            Spacer(Modifier.height(6.dp))
+            Hint(detail)
+        }
+        if (goal.milestones.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                MilestoneDots(goal.milestones.count { it.done }, goal.milestones.size)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "🏁 ${goal.milestones.count { it.done }}/${goal.milestones.size}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = scheme.onSurfaceVariant
+                )
+            }
+        }
         if (goal.status == GoalStatus.ACTIVE) {
             val nextMilestone = goal.nextMilestone()
             val nextStep = goal.nextStep()
@@ -278,9 +351,42 @@ fun GoalCard(goal: Goal, today: LocalDate, compact: Boolean = false, onClick: ()
                 nextStep != null -> "Next → ${nextStep.title}"
                 else -> null
             }
-            next?.let {
-                Text(it, style = MaterialTheme.typography.labelLarge, color = scheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (next != null) {
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        next,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = scheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    SmallAction("＋ Log", onLog)
+                }
             }
+        }
+    }
+}
+
+/** One dot per milestone, filled in proportion to how many are reached. */
+@Composable
+private fun MilestoneDots(done: Int, total: Int) {
+    val track = MaterialTheme.colorScheme.outlineVariant
+    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+        val show = total.coerceAtMost(10)
+        val filled = if (total == 0) 0 else (done.toFloat() / total * show).toInt().coerceIn(0, show)
+        repeat(show) { i ->
+            Box(
+                Modifier
+                    .size(9.dp)
+                    .clip(CircleShape)
+                    .background(if (i < filled) GoalColor else track)
+            )
+        }
+        if (total > show) {
+            Text("+${total - show}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -364,7 +364,8 @@ fun HabitDialog(
     onDismiss: () -> Unit,
     onSave: (Habit) -> Unit,
     onArchive: (() -> Unit)? = null,
-    onDelete: (() -> Unit)? = null
+    onDelete: (() -> Unit)? = null,
+    presetGoalId: String? = null
 ) {
     var name by remember { mutableStateOf(initial?.name.orEmpty()) }
     var why by remember { mutableStateOf(initial?.why.orEmpty()) }
@@ -437,6 +438,7 @@ fun HabitDialog(
                             target = targetValue,
                             unit = if (counter) unit.trim() else "",
                             days = days,
+                            goalId = initial?.goalId ?: presetGoalId,
                             createdAt = initial?.createdAt ?: today.toString(),
                             archived = initial?.archived ?: false
                         )
