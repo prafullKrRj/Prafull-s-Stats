@@ -141,14 +141,14 @@ data class GoalCheckin(
     val note: String = ""
 )
 
-/** Pace of a goal against its own deadline. */
-enum class GoalHealth(val title: String, val emoji: String) {
-    DONE("Achieved", "🏆"),
-    ON_TRACK("On track", "🟢"),
-    NEEDS_PUSH("Needs push", "🟡"),
-    BEHIND("Behind", "🔴"),
-    OVERDUE("Overdue", "⏰"),
-    OPEN("Open", "⚪")
+/** Pace of a goal against its own deadline. Lower [attention] = needs eyes first. */
+enum class GoalHealth(val title: String, val emoji: String, val attention: Int) {
+    OVERDUE("Overdue", "⏰", 0),
+    BEHIND("Behind", "🔴", 1),
+    NEEDS_PUSH("Needs push", "🟡", 2),
+    OPEN("Open", "⚪", 3),
+    ON_TRACK("On track", "🟢", 4),
+    DONE("Achieved", "🏆", 5)
 }
 
 /** One row of a goal's story: created, steps, milestones, check-ins. */
@@ -172,6 +172,8 @@ data class Goal(
     val title: String,
     /** The reason. Shown above everything else on the goal. */
     val why: String = "",
+    /** Custom emoji for the goal. Blank falls back to the area emoji. */
+    val icon: String = "",
     val area: GoalArea = GoalArea.PERSONAL,
     val status: GoalStatus = GoalStatus.ACTIVE,
     val steps: List<GoalStep> = emptyList(),
@@ -226,8 +228,68 @@ data class Goal(
 
     fun startOrCreated(): LocalDate? = parseDate(startDate) ?: parseDate(createdAt)
 
+    /** Custom icon, or the area emoji when none is set. */
+    fun displayIcon(): String = icon.ifBlank { area.emoji }
+
     /** Days from [today] to the deadline; negative when overdue, null without one. */
     fun daysLeft(today: LocalDate): Int? = parseDate(targetDate)?.let { today.daysTo(it) }
+
+    /**
+     * Metric units still needed per day to land on the deadline. Signed, so a
+     * count-down goal reads negative ("lose 0.5 kg/day"). 0 when already there,
+     * null without a number, a deadline, or time left.
+     */
+    fun requiredDailyPace(today: LocalDate): Double? {
+        if (!hasMetric) return null
+        if (metricProgress >= 1f) return 0.0
+        val left = daysLeft(today) ?: return null
+        if (left <= 0) return null
+        return (metricTarget - metricCurrent) / left
+    }
+
+    /**
+     * Projected date the number hits target at the recent pace — valued
+     * check-ins from the last 30 days, first to last. Null with fewer than two
+     * points, no movement, movement away from target, or a silly projection.
+     */
+    fun projectedFinish(today: LocalDate): LocalDate? {
+        if (!hasMetric || metricProgress >= 1f) return null
+        val points = checkins.mapNotNull { c ->
+            c.value?.let { v -> parseDate(c.date)?.let { d -> d to v } }
+        }.filter { it.first <= today && it.first >= today.minusDays(30) }.sortedBy { it.first }
+        if (points.size < 2) return null
+        val spanDays = points.first().first.daysTo(points.last().first)
+        if (spanDays <= 0) return null
+        val ratePerDay = (points.last().second - points.first().second) / spanDays
+        val remaining = metricTarget - metricCurrent
+        if (ratePerDay == 0.0 || remaining == 0.0) return null
+        if ((remaining > 0) != (ratePerDay > 0)) return null
+        val daysNeeded = kotlin.math.ceil(kotlin.math.abs(remaining) / kotlin.math.abs(ratePerDay)).toInt()
+        if (daysNeeded > 3650) return null
+        return today.plusDays(daysNeeded)
+    }
+
+    /** Dates with visible effort: a check-in, a step done, or a milestone done. */
+    fun activeDates(): Set<String> = buildSet {
+        checkins.forEach { add(it.date) }
+        steps.forEach { if (it.done && it.doneAt != null) add(it.doneAt) }
+        milestones.forEach { if (it.done && it.doneAt != null) add(it.doneAt) }
+    }
+
+    /**
+     * Consecutive active days ending today. Today gets grace — an untouched
+     * today counts back from yesterday instead of reading 0.
+     */
+    fun activityStreak(today: LocalDate): Int {
+        val active = activeDates()
+        var day = if (today.toString() in active) today else today.minusDays(1)
+        var streak = 0
+        while (day.toString() in active) {
+            streak++
+            day = day.minusDays(1)
+        }
+        return streak
+    }
 
     /**
      * Share of allotted time used up, 0..1. Null without a start and deadline

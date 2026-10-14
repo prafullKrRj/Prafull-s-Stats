@@ -15,6 +15,7 @@ data class GoalTemplate(
     val name: String,
     val area: GoalArea,
     val why: String,
+    val icon: String = "",
     val metricName: String = "",
     val metricTarget: Double = 0.0,
     val steps: List<Pair<String, String>>,
@@ -24,6 +25,7 @@ data class GoalTemplate(
         id = newId("goal"),
         title = name,
         why = why,
+        icon = icon,
         area = area,
         metricName = metricName,
         metricTarget = metricTarget,
@@ -40,6 +42,7 @@ object GoalTemplates {
     val publishAndroidApp = GoalTemplate(
         name = "Publish an Android app on Play Store",
         area = GoalArea.APPS,
+        icon = "📱",
         why = "Shipping is the only thing that counts. A live app earns, teaches and compounds — a folder of unfinished projects does none of that.",
         metricName = "Installs",
         metricTarget = 1000.0,
@@ -74,6 +77,7 @@ object GoalTemplates {
     val sideProjectRevenue = GoalTemplate(
         name = "Reach first ₹10k / month from apps",
         area = GoalArea.MONEY,
+        icon = "💸",
         why = "Income that does not need me in the room buys freedom of time.",
         metricName = "₹ per month",
         metricTarget = 10000.0,
@@ -94,6 +98,7 @@ object GoalTemplates {
     val bodyRecomp = GoalTemplate(
         name = "Body recomposition",
         area = GoalArea.HEALTH,
+        icon = "🏋️",
         why = "Energy, confidence and long-term health. A strong body makes everything else easier.",
         metricName = "kg body weight",
         steps = listOf(
@@ -114,6 +119,7 @@ object GoalTemplates {
     val learnSkill = GoalTemplate(
         name = "Learn a new skill deeply",
         area = GoalArea.LEARNING,
+        icon = "🧠",
         why = "Skills compound — every one makes the next easier and opens new doors.",
         metricName = "focused hours",
         metricTarget = 100.0,
