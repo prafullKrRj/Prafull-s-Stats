@@ -649,7 +649,83 @@ object StatsRepo {
         }
     }
 
-    fun setMetric(goalId: String, value: Double) = editGoal(goalId) { it.copy(metricCurrent = value) }
+    fun setMetric(goalId: String, value: Double, note: String = "") = editGoal(goalId) {
+        it.withMetric(value, today().toString(), ::newId, note)
+    }
+
+    fun setGoalPriority(id: String, priority: Int) = editGoal(id) {
+        it.copy(priority = priority.coerceIn(0, 3))
+    }
+
+    /** Fresh copy of a goal to chase again; returns the new id, null when missing. */
+    fun duplicateGoal(id: String): String? {
+        val g = goal(id) ?: return null
+        val copy = g.duplicate(::newId, today().toString())
+        upsertGoal(copy)
+        return copy.id
+    }
+
+    // ---- writes: milestones ----------------------------------------------
+
+    fun addMilestone(
+        goalId: String,
+        title: String,
+        why: String = "",
+        due: String? = null,
+        metricValue: Double? = null
+    ) {
+        if (title.isBlank()) return
+        editGoal(goalId) {
+            it.copy(milestones = it.milestones + GoalMilestone(newId("milestone"), title.trim(), why.trim(), due, metricValue))
+                .withAutoMilestones(today().toString())
+        }
+    }
+
+    fun updateMilestone(goalId: String, milestone: GoalMilestone) = editGoal(goalId) { g ->
+        g.copy(milestones = g.milestones.map { if (it.id == milestone.id) milestone else it })
+            .withAutoMilestones(today().toString())
+    }
+
+    fun setMilestoneDone(goalId: String, milestoneId: String, done: Boolean) = editGoal(goalId) { g ->
+        g.copy(milestones = g.milestones.map {
+            if (it.id == milestoneId) it.copy(done = done, doneAt = if (done) today().toString() else null) else it
+        })
+    }
+
+    fun toggleMilestone(goalId: String, milestoneId: String) {
+        val m = goal(goalId)?.milestones?.firstOrNull { it.id == milestoneId } ?: return
+        setMilestoneDone(goalId, milestoneId, !m.done)
+    }
+
+    fun removeMilestone(goalId: String, milestoneId: String) = editGoal(goalId) { g ->
+        g.copy(milestones = g.milestones.filterNot { it.id == milestoneId })
+    }
+
+    fun moveMilestone(goalId: String, milestoneId: String, up: Boolean) = editGoal(goalId) { g ->
+        val list = g.milestones.toMutableList()
+        val i = list.indexOfFirst { it.id == milestoneId }
+        val j = if (up) i - 1 else i + 1
+        if (i < 0 || j !in list.indices) g
+        else {
+            val tmp = list[i]; list[i] = list[j]; list[j] = tmp
+            g.copy(milestones = list)
+        }
+    }
+
+    // ---- writes: check-ins -----------------------------------------------
+
+    /** Logs a progress update; a value also moves the metric (once, not twice). */
+    fun logCheckin(goalId: String, value: Double?, note: String) {
+        if (value == null && note.isBlank()) return
+        editGoal(goalId) { g ->
+            if (value != null) g.withMetric(value, today().toString(), ::newId, note)
+            else g.copy(checkins = g.checkins + GoalCheckin(newId("checkin"), today().toString(), null, note.trim()))
+        }
+    }
+
+    fun removeCheckin(goalId: String, checkinId: String) = editGoal(goalId) { g ->
+        g.copy(checkins = g.checkins.filterNot { it.id == checkinId })
+    }
 
     /** Turns a goal step into a task on [date] (or the backlog), carrying the goal's why. */
     fun planStep(goalId: String, stepId: String, date: LocalDate?) {
