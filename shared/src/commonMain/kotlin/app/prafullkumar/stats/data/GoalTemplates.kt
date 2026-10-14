@@ -4,13 +4,21 @@ package app.prafullkumar.stats.data
  * Ready-made goals. Each step carries its own why, so the reason for doing it
  * is in front of you when it shows up as today's task.
  */
+data class TemplateMilestone(
+    val title: String,
+    val why: String = "",
+    /** Metric value that auto-ticks it. Null = tick by hand. */
+    val metricValue: Double? = null
+)
+
 data class GoalTemplate(
     val name: String,
     val area: GoalArea,
     val why: String,
     val metricName: String = "",
     val metricTarget: Double = 0.0,
-    val steps: List<Pair<String, String>>
+    val steps: List<Pair<String, String>>,
+    val milestones: List<TemplateMilestone> = emptyList()
 ) {
     fun build(today: String, newId: (String) -> String): Goal = Goal(
         id = newId("goal"),
@@ -20,7 +28,10 @@ data class GoalTemplate(
         metricName = metricName,
         metricTarget = metricTarget,
         createdAt = today,
-        steps = steps.map { (title, why) -> GoalStep(newId("step"), title, why) }
+        steps = steps.map { (title, why) -> GoalStep(newId("step"), title, why) },
+        milestones = milestones.map { m ->
+            GoalMilestone(newId("milestone"), m.title, m.why, metricValue = m.metricValue)
+        }
     )
 }
 
@@ -50,6 +61,13 @@ object GoalTemplates {
             "Release to production (staged rollout)" to "A staged rollout limits the blast radius of a bad build.",
             "Ask first users for reviews" to "Early ratings decide ranking.",
             "Ship the first update from feedback" to "Fast follow-ups turn installs into fans."
+        ),
+        milestones = listOf(
+            TemplateMilestone("MVP built", "Something real exists and runs."),
+            TemplateMilestone("Closed test live with 12+ testers", "The 14-day clock is ticking."),
+            TemplateMilestone("Launched to production", "It is out there. Real users, real reviews."),
+            TemplateMilestone("First 100 installs", "Proof strangers want it.", metricValue = 100.0),
+            TemplateMilestone("1,000 installs", "The goal number. Celebrate loudly.", metricValue = 1000.0)
         )
     )
 
@@ -65,6 +83,11 @@ object GoalTemplates {
             "Set up payments profile and tax info" to "No payout without it.",
             "A/B test the paywall copy" to "Small copy changes move conversion a lot.",
             "Publish a second app in the same niche" to "A portfolio smooths out one app's bad month."
+        ),
+        milestones = listOf(
+            TemplateMilestone("First paying user", "Someone opened their wallet. The model works."),
+            TemplateMilestone("First ₹1k month", "Real money, every month.", metricValue = 1000.0),
+            TemplateMilestone("₹10k month", "The goal. Freedom money.", metricValue = 10000.0)
         )
     )
 
@@ -80,6 +103,11 @@ object GoalTemplates {
             "Hit protein 6 days out of 7" to "Protein is the lever for keeping muscle in a deficit.",
             "Sleep 7.5h average for a month" to "Recovery is where progress happens.",
             "Take progress photos every 2 weeks" to "The scale lies; photos don't."
+        ),
+        milestones = listOf(
+            TemplateMilestone("4 weeks of training logged", "The habit exists now."),
+            TemplateMilestone("Protein 6/7 for a full month", "Fuel is handled."),
+            TemplateMilestone("Visible change in photos", "Proof the work worked.")
         )
     )
 
@@ -94,6 +122,11 @@ object GoalTemplates {
             "Build a small project with it" to "Knowledge only sticks when used.",
             "Write a post explaining what you learned" to "Teaching exposes the gaps.",
             "Build a bigger project end to end" to "Depth comes from finishing hard things."
+        ),
+        milestones = listOf(
+            TemplateMilestone("Resource finished", "No more tutorial hopping."),
+            TemplateMilestone("First project shipped", "Knowledge that actually stuck."),
+            TemplateMilestone("100 focused hours", "Deep enough to be dangerous.", metricValue = 100.0)
         )
     )
 

@@ -1,5 +1,6 @@
 package app.prafullkumar.stats.data
 
+import kotlinx.datetime.LocalDate
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -113,6 +114,55 @@ data class GoalStep(
 )
 
 /**
+ * A big checkpoint on the way to a goal — "MVP built", "First 100 installs".
+ * Smaller than the goal, bigger than a step. When [metricValue] is set and the
+ * goal tracks a number, the milestone ticks itself once the number passes it.
+ */
+@Serializable
+data class GoalMilestone(
+    val id: String,
+    val title: String,
+    val why: String = "",
+    val due: String? = null,
+    /** Metric value that auto-completes this milestone. Null = tick by hand. */
+    val metricValue: Double? = null,
+    val done: Boolean = false,
+    val doneAt: String? = null
+)
+
+/** One logged progress update: a metric snapshot, a note, or both. */
+@Serializable
+data class GoalCheckin(
+    val id: String,
+    /** "YYYY-MM-DD". */
+    val date: String,
+    /** Metric snapshot at check-in time. Null when the goal has no number. */
+    val value: Double? = null,
+    val note: String = ""
+)
+
+/** Pace of a goal against its own deadline. */
+enum class GoalHealth(val title: String, val emoji: String) {
+    DONE("Achieved", "🏆"),
+    ON_TRACK("On track", "🟢"),
+    NEEDS_PUSH("Needs push", "🟡"),
+    BEHIND("Behind", "🔴"),
+    OVERDUE("Overdue", "⏰"),
+    OPEN("Open", "⚪")
+}
+
+/** One row of a goal's story: created, steps, milestones, check-ins. */
+data class GoalEvent(val date: String, val text: String, val emoji: String)
+
+/** 0 none, 1 low, 2 medium, 3 high — same scale as [Task.priority]. */
+fun goalPriorityName(priority: Int): String = when (priority) {
+    3 -> "High"
+    2 -> "Medium"
+    1 -> "Low"
+    else -> "None"
+}
+
+/**
  * Something worth chasing for weeks or months. Progress comes from a number
  * ([metricTarget], e.g. 1 000 installs) when one is set, else from steps.
  */
@@ -125,10 +175,16 @@ data class Goal(
     val area: GoalArea = GoalArea.PERSONAL,
     val status: GoalStatus = GoalStatus.ACTIVE,
     val steps: List<GoalStep> = emptyList(),
+    val milestones: List<GoalMilestone> = emptyList(),
+    val checkins: List<GoalCheckin> = emptyList(),
+    /** 0 none, 1 low, 2 medium, 3 high. */
+    val priority: Int = 0,
     val metricName: String = "",
     val metricStart: Double = 0.0,
     val metricCurrent: Double = 0.0,
     val metricTarget: Double = 0.0,
+    /** "YYYY-MM-DD". Falls back to [createdAt] for pacing when unset. */
+    val startDate: String? = null,
     val targetDate: String? = null,
     val createdAt: String = "",
     val doneAt: String? = null,
@@ -146,9 +202,15 @@ data class Goal(
     val stepProgress: Float
         get() = if (steps.isEmpty()) 0f else steps.count { it.done }.toFloat() / steps.size
 
+    /** 0..1 share of milestones reached. */
+    val milestoneProgress: Float
+        get() = if (milestones.isEmpty()) 0f else milestones.count { it.done }.toFloat() / milestones.size
+
     /**
      * 0..1 overall. With both a number and steps, each counts half — steps are
      * the plan, the number is the outcome, and neither alone tells the story.
+     * Milestones stay out of the number: they celebrate the journey, they don't
+     * grade it.
      */
     val progress: Float
         get() = when {
@@ -159,6 +221,106 @@ data class Goal(
         }
 
     fun nextStep(): GoalStep? = steps.firstOrNull { !it.done }
+
+    fun nextMilestone(): GoalMilestone? = milestones.firstOrNull { !it.done }
+
+    fun startOrCreated(): LocalDate? = parseDate(startDate) ?: parseDate(createdAt)
+
+    /** Days from [today] to the deadline; negative when overdue, null without one. */
+    fun daysLeft(today: LocalDate): Int? = parseDate(targetDate)?.let { today.daysTo(it) }
+
+    /**
+     * Share of allotted time used up, 0..1. Null without a start and deadline
+     * to pace against.
+     */
+    fun expectedProgress(today: LocalDate): Float? {
+        val start = startOrCreated() ?: return null
+        val end = parseDate(targetDate) ?: return null
+        val total = start.daysTo(end)
+        if (total <= 0) return 1f
+        return start.daysTo(today).coerceIn(0, total).toFloat() / total
+    }
+
+    /** Pace against the deadline, from the gap between progress and time used. */
+    fun health(today: LocalDate): GoalHealth {
+        if (status == GoalStatus.DONE) return GoalHealth.DONE
+        if (progress >= 1f) return GoalHealth.ON_TRACK
+        val deadline = parseDate(targetDate)
+        if (deadline != null && deadline < today) return GoalHealth.OVERDUE
+        val expected = expectedProgress(today) ?: return GoalHealth.OPEN
+        val gap = progress - expected
+        return when {
+            gap >= -0.05f -> GoalHealth.ON_TRACK
+            gap >= -0.20f -> GoalHealth.NEEDS_PUSH
+            else -> GoalHealth.BEHIND
+        }
+    }
+
+    /**
+     * Copy with the metric moved to [value]: today's check-in is recorded (a
+     * bare re-entry on the same day overwrites instead of spamming history)
+     * and metric-linked milestones tick themselves.
+     */
+    fun withMetric(value: Double, date: String, newId: (String) -> String, note: String = ""): Goal {
+        val moved = copy(metricCurrent = value)
+        val last = checkins.lastOrNull()
+        val withCheckin = if (last != null && last.date == date && last.note.isBlank() && note.isBlank()) {
+            moved.copy(checkins = checkins.dropLast(1) + last.copy(value = value))
+        } else {
+            moved.copy(checkins = checkins + GoalCheckin(newId("checkin"), date, value, note.trim()))
+        }
+        return withCheckin.withAutoMilestones(date)
+    }
+
+    /**
+     * Copy with milestones whose metric threshold [metricCurrent] has reached
+     * marked done. Direction-aware (losing kg counts down); never unticks.
+     */
+    fun withAutoMilestones(date: String): Goal {
+        if (!hasMetric) return this
+        val down = metricTarget < metricStart
+        var changed = false
+        val updated = milestones.map { m ->
+            val threshold = m.metricValue
+            if (!m.done && threshold != null && (if (down) metricCurrent <= threshold else metricCurrent >= threshold)) {
+                changed = true
+                m.copy(done = true, doneAt = date)
+            } else m
+        }
+        return if (changed) copy(milestones = updated) else this
+    }
+
+    /** Fresh copy to chase again: same plan, blank scoreboard. */
+    fun duplicate(newId: (String) -> String, today: String): Goal = copy(
+        id = newId("goal"),
+        title = "$title (copy)",
+        status = GoalStatus.ACTIVE,
+        steps = steps.map { it.copy(id = newId("step"), done = false, doneAt = null) },
+        milestones = milestones.map { it.copy(id = newId("milestone"), done = false, doneAt = null) },
+        checkins = emptyList(),
+        metricCurrent = metricStart,
+        createdAt = today,
+        doneAt = null,
+        pinned = false
+    )
+
+    /** Newest-first story of the goal: creation, steps, milestones, check-ins. */
+    fun timeline(): List<GoalEvent> = buildList {
+        if (createdAt.isNotBlank()) add(GoalEvent(createdAt, "Goal created", "🌱"))
+        steps.filter { it.done && it.doneAt != null }.forEach {
+            add(GoalEvent(it.doneAt!!, "Step done: ${it.title}", "✅"))
+        }
+        milestones.filter { it.done }.forEach {
+            add(GoalEvent(it.doneAt ?: "", "Milestone reached: ${it.title}", "🏁"))
+        }
+        checkins.forEach { c ->
+            val snapshot = c.value?.let {
+                "${formatNumber(it)}${if (metricName.isNotBlank()) " $metricName" else ""}"
+            } ?: "Check-in"
+            add(GoalEvent(c.date, if (c.note.isBlank()) snapshot else "$snapshot — ${c.note}", "📝"))
+        }
+        if (status == GoalStatus.DONE && doneAt != null) add(GoalEvent(doneAt, "Goal achieved", "🏆"))
+    }.sortedWith(compareByDescending<GoalEvent> { it.date }.thenBy { it.text })
 }
 
 /** 0 none, 1 low, 2 medium, 3 high. */
