@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.prafullkumar.stats.data.Goal
 import app.prafullkumar.stats.data.GoalArea
+import app.prafullkumar.stats.data.GoalCheckin
 import app.prafullkumar.stats.data.GoalHealth
 import app.prafullkumar.stats.data.GoalMilestone
 import app.prafullkumar.stats.data.GoalStatus
@@ -290,11 +291,16 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
     var editing by remember { mutableStateOf(false) }
     var addingStep by remember { mutableStateOf(false) }
     var editingStep by remember { mutableStateOf<GoalStep?>(null) }
+    var addingMilestone by remember { mutableStateOf(false) }
+    var editingMilestone by remember { mutableStateOf<GoalMilestone?>(null) }
+    var logging by remember { mutableStateOf(false) }
+    var deletingCheckin by remember { mutableStateOf<GoalCheckin?>(null) }
     var addingTask by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     val scheme = MaterialTheme.colorScheme
     val linked = StatsRepo.allTasks().filter { it.second.goalId == goalId }
     val focus = StatsRepo.focusOnGoal(goalId)
+    val health = goal.health(today)
 
     ScreenColumn(contentPadding) {
         item {
@@ -331,19 +337,31 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
                         if (goal.hasMetric && goal.steps.isNotEmpty()) {
                             Hint("Steps ${(goal.stepProgress * 100).toInt()}% · ${goal.metricName} ${(goal.metricProgress * 100).toInt()}%")
                         }
+                        if (goal.milestones.isNotEmpty()) {
+                            Hint("🏁 ${goal.milestones.count { it.done }}/${goal.milestones.size} milestones")
+                        }
+                        val expected = goal.expectedProgress(today)
+                        if (goal.status == GoalStatus.ACTIVE && expected != null) {
+                            Hint("${health.emoji} ${health.title} — should be ~${(expected * 100).toInt()}% by now")
+                        } else if (goal.status == GoalStatus.ACTIVE) {
+                            Hint("${health.emoji} ${health.title}")
+                        }
                         parseDate(goal.targetDate)?.let { Hint("Deadline ${it} · ${dueLabel(it, today)}") }
                         Hint("${minutesLabel(focus)} focused · ${linked.count { it.second.done }} tasks done")
-                        Hint("Status: ${goal.status.title}")
+                        Hint("Status: ${goal.status.title}" + if (goal.priority > 0) " · ${goalPriorityName(goal.priority)} priority" else "")
                     }
                 }
             }
         }
 
-        if (goal.hasMetric) {
-            item {
-                SectionCard {
-                    SectionHeader(goal.metricName, "${formatNumber(goal.metricStart)} → ${formatNumber(goal.metricTarget)}")
-                    Spacer(Modifier.height(10.dp))
+        item {
+            SectionCard {
+                SectionHeader(
+                    if (goal.hasMetric) goal.metricName else "Progress log",
+                    if (goal.hasMetric) "${formatNumber(goal.metricStart)} → ${formatNumber(goal.metricTarget)}" else null
+                )
+                Spacer(Modifier.height(10.dp))
+                if (goal.hasMetric) {
                     var value by remember(goal.metricCurrent) { mutableStateOf(formatNumber(goal.metricCurrent)) }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         NumberInput(value, { value = it }, "Current", Modifier.weight(1f))
@@ -352,7 +370,77 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
                             value.toDoubleOrNull()?.let { StatsRepo.setMetric(goal.id, it) }
                         }
                     }
+                    val history = goal.checkins.mapNotNull { it.value }
+                    if (history.size >= 2) {
+                        Spacer(Modifier.height(10.dp))
+                        WeightChart(
+                            points = history.takeLast(30),
+                            goal = goal.metricTarget,
+                            color = GoalColor,
+                            emptyText = "Log two updates to see the graph."
+                        )
+                    }
+                } else {
+                    Hint("No number on this goal — log notes as you go, or add a number via Edit.")
                 }
+                val recent = goal.checkins.takeLast(3).reversed()
+                if (recent.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    recent.forEach { c ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "📝 ${c.date}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = scheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                buildString {
+                                    c.value?.let { append("${formatNumber(it)}${if (goal.metricName.isNotBlank()) " ${goal.metricName}" else ""}") }
+                                    if (c.note.isNotBlank()) {
+                                        if (isNotEmpty()) append(" — ")
+                                        append(c.note)
+                                    }
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = scheme.onSurface,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            TextButton(onClick = { deletingCheckin = c }) {
+                                Text("✕", color = scheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                AddButton("Log update", Modifier.fillMaxWidth()) { logging = true }
+            }
+        }
+
+        item {
+            SectionCard {
+                SectionHeader("Milestones", "${goal.milestones.count { it.done }} / ${goal.milestones.size}")
+                Spacer(Modifier.height(4.dp))
+                if (goal.milestones.isEmpty()) {
+                    Hint("Big checkpoints worth celebrating — “First 100 installs”, “MVP built”. Some tick themselves when your number reaches them.")
+                } else {
+                    ThinBar(goal.milestoneProgress, GoalColor, height = 8.dp)
+                    Spacer(Modifier.height(4.dp))
+                }
+                goal.milestones.forEachIndexed { i, milestone ->
+                    MilestoneRow(
+                        goal = goal,
+                        milestone = milestone,
+                        first = i == 0,
+                        last = i == goal.milestones.lastIndex,
+                        today = today,
+                        onEdit = { editingMilestone = milestone }
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                AddButton("Add milestone", Modifier.fillMaxWidth()) { addingMilestone = true }
             }
         }
 
@@ -389,6 +477,33 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
             }
         }
 
+        val journey = goal.timeline()
+        if (journey.size > 1) {
+            item {
+                SectionCard {
+                    SectionHeader("Journey", plural(journey.size, "moment"))
+                    Spacer(Modifier.height(8.dp))
+                    journey.take(15).forEach { e ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 3.dp)) {
+                            Text(e.emoji, style = MaterialTheme.typography.bodyMedium)
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    e.text,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = scheme.onSurface,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(e.date, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    if (journey.size > 15) Hint("+ ${journey.size - 15} earlier moments")
+                }
+            }
+        }
+
         item {
             SectionCard {
                 SectionHeader("Status")
@@ -399,9 +514,20 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
                     }
                 }
                 Spacer(Modifier.height(10.dp))
+                SectionHeader("Priority")
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    (0..3).forEach { p ->
+                        ChoiceChip(goalPriorityName(p), goal.priority == p) { StatsRepo.setGoalPriority(goal.id, p) }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
                 Row {
                     TextButton(onClick = { StatsRepo.upsertGoal(goal.copy(pinned = !goal.pinned)) }) {
-                        Text(if (goal.pinned) "Unpin from dashboard" else "Pin to dashboard")
+                        Text(if (goal.pinned) "Unpin" else "Pin")
+                    }
+                    TextButton(onClick = { StatsRepo.duplicateGoal(goal.id)?.let { Nav.openGoal(it) } }) {
+                        Text("Duplicate")
                     }
                     TextButton(onClick = { confirmDelete = true }) { Text("Delete", color = scheme.error) }
                 }
@@ -439,6 +565,31 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
             StatsRepo.updateStep(goal.id, step.copy(title = title, why = why, due = due)); editingStep = null
         }, onDelete = { StatsRepo.removeStep(goal.id, step.id); editingStep = null })
     }
+    if (addingMilestone) {
+        MilestoneDialog(null, goal.metricName, onDismiss = { addingMilestone = false }, onSave = { title, why, due, threshold ->
+            StatsRepo.addMilestone(goal.id, title, why, due, threshold); addingMilestone = false
+        })
+    }
+    editingMilestone?.let { milestone ->
+        MilestoneDialog(milestone, goal.metricName, onDismiss = { editingMilestone = null }, onSave = { title, why, due, threshold ->
+            StatsRepo.updateMilestone(goal.id, milestone.copy(title = title, why = why, due = due, metricValue = threshold))
+            editingMilestone = null
+        }, onDelete = { StatsRepo.removeMilestone(goal.id, milestone.id); editingMilestone = null })
+    }
+    if (logging) {
+        CheckinDialog(goal.metricName, goal.metricCurrent, onDismiss = { logging = false }, onSave = { value, note ->
+            StatsRepo.logCheckin(goal.id, value, note); logging = false
+        })
+    }
+    deletingCheckin?.let { c ->
+        ConfirmDialog(
+            title = "Remove this update?",
+            body = "The logged value stays in the goal's number — only this history row goes.",
+            confirm = "Remove",
+            onDismiss = { deletingCheckin = null },
+            onConfirm = { StatsRepo.removeCheckin(goal.id, c.id); deletingCheckin = null }
+        )
+    }
     if (addingTask) {
         TaskDialog(null, today, today, presetGoalId = goal.id, onDismiss = { addingTask = false }, onSave = { t, where ->
             StatsRepo.addTask(where, t.copy(why = t.why.ifBlank { goal.why })); addingTask = false
@@ -452,6 +603,61 @@ fun GoalDetailScreen(goalId: String, today: LocalDate, contentPadding: PaddingVa
             onDismiss = { confirmDelete = false },
             onConfirm = { StatsRepo.deleteGoal(goal.id); confirmDelete = false; Nav.back() }
         )
+    }
+}
+
+@Composable
+private fun MilestoneRow(goal: Goal, milestone: GoalMilestone, first: Boolean, last: Boolean, today: LocalDate, onEdit: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onEdit)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.clip(CircleShape).clickable { StatsRepo.toggleMilestone(goal.id, milestone.id) }) {
+            CheckDot(milestone.done, size = 26.dp, color = GoalColor)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                "🏁 ${milestone.title}",
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (milestone.done) scheme.onSurfaceVariant else scheme.onSurface,
+                textDecoration = if (milestone.done) TextDecoration.LineThrough else TextDecoration.None
+            )
+            if (milestone.why.isNotBlank() && !milestone.done) {
+                Text("why: ${milestone.why}", style = MaterialTheme.typography.labelMedium, color = scheme.primary, maxLines = 2)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                parseDate(milestone.due)?.let {
+                    if (!milestone.done) Text(
+                        dueLabel(it, today),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (it < today) StreakColor else scheme.onSurfaceVariant
+                    )
+                }
+                milestone.metricValue?.let { threshold ->
+                    if (!milestone.done && goal.hasMetric) {
+                        Tag("⚡ auto @ ${formatNumber(threshold)}", scheme.tertiary)
+                    }
+                }
+            }
+        }
+        Column {
+            Icon(
+                Icons.Filled.KeyboardArrowUp, contentDescription = "Move up",
+                tint = if (first) scheme.outlineVariant else scheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp).clickable(enabled = !first) { StatsRepo.moveMilestone(goal.id, milestone.id, true) }
+            )
+            Icon(
+                Icons.Filled.KeyboardArrowDown, contentDescription = "Move down",
+                tint = if (last) scheme.outlineVariant else scheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp).clickable(enabled = !last) { StatsRepo.moveMilestone(goal.id, milestone.id, false) }
+            )
+        }
     }
 }
 
